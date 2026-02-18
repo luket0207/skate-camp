@@ -71,3 +71,18 @@
     margin: 0;
   }
 }
+
+.skatersPage__cardActions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.skatersPage__meta {
+  margin-top: 0.45rem;
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  font-weight: 700;
+}

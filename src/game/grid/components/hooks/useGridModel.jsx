@@ -25,6 +25,26 @@ const RUN_DURATION_MS = 2000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const parseCoordinate = (coordinate) => {
+  if (typeof coordinate !== "string" || coordinate.length < 2) return null;
+  const rowChar = coordinate[0].toUpperCase();
+  const colRaw = Number(coordinate.slice(1));
+  if (!Number.isInteger(colRaw) || colRaw < 1) return null;
+  const row = rowChar.charCodeAt(0) - 65;
+  const col = colRaw - 1;
+  if (row < 0) return null;
+  return { row, col };
+};
+
+const parseSize = (sizeRaw) => {
+  if (typeof sizeRaw !== "string") return null;
+  const [rowsRaw, colsRaw] = sizeRaw.toLowerCase().split("x");
+  const rows = Number(rowsRaw);
+  const cols = Number(colsRaw);
+  if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows < 1 || cols < 1) return null;
+  return { rows, cols };
+};
+
 const buildRoutePiece = (piece, row, col) => ({
   ...piece,
   row,
@@ -98,7 +118,13 @@ export const useGridModel = () => {
   const { openModal, closeModal } = useModal();
   const { info, warning, success } = useToast();
 
-  const [gridSize, setGridSize] = useState(6);
+  const [gridSize, setGridSize] = useState(() => {
+    const configured = Number(gameState?.skateparkConfig?.gridSize);
+    if (Number.isInteger(configured) && configured >= MIN_GRID_SIZE && configured <= MAX_GRID_SIZE) {
+      return configured;
+    }
+    return 3;
+  });
   const [gridMode, setGridMode] = useState("edit");
   const [editMode, setEditMode] = useState("build");
   const [beginnerSport, setBeginnerSport] = useState(SKATER_SPORT.SKATEBOARDER);
@@ -131,6 +157,92 @@ export const useGridModel = () => {
   useEffect(() => {
     setGameValue("player.skaterPool", playerSkaterPool);
   }, [playerSkaterPool, setGameValue]);
+
+  useEffect(() => {
+    setGameValue("skateparkConfig.gridSize", gridSize);
+  }, [gridSize, setGameValue]);
+
+  useEffect(() => {
+    const source = Array.isArray(gameState.skatepark) ? gameState.skatepark : [];
+    if (source.length < 1) {
+      setPlacedStandalone([]);
+      setCommittedRoutes([]);
+      return;
+    }
+
+    const hydratedStandalone = [];
+    const hydratedRoutes = [];
+    let standaloneCount = 0;
+    let routeCount = 0;
+
+    source.forEach((entry, index) => {
+      if (entry?.Type === "Standalone") {
+        const topLeft = parseCoordinate(entry.Coordinates);
+        const size = parseSize(entry.Size);
+        if (!topLeft || !size) return;
+
+        const template = standalonePieces.find((piece) => piece.name === entry.Name) || standalonePieces[0];
+        const instanceId = entry.id || `standalone-${index + 1}`;
+
+        hydratedStandalone.push({
+          instanceId,
+          pieceId: template?.id || `standalone-piece-${index + 1}`,
+          name: entry.Name || template?.name || `Standalone ${index + 1}`,
+          type: "Standalone",
+          size,
+          startingSpots: Number(entry.StartingSpots ?? template?.startingSpots ?? 0),
+          marker: template?.marker || "S",
+          color: template?.color || "#f97316",
+          topLeft,
+          tiles: buildStandaloneTiles(topLeft.row, topLeft.col, size),
+        });
+        standaloneCount += 1;
+        return;
+      }
+
+      if (entry?.Type === "Route" && Array.isArray(entry.Pieces)) {
+        const routeId = entry.id || `route-${index + 1}`;
+        const pieces = entry.Pieces.map((piece, pieceIndex) => {
+          const point = parseCoordinate(piece.Coordinates);
+          if (!point) return null;
+
+          const routeType = typeof piece.RouteType === "string"
+            ? piece.RouteType.split(",").map((item) => item.trim()).filter(Boolean)
+            : [];
+          const template = routePieces.find((routePiece) => routePiece.name === piece.Name);
+
+          return {
+            id: template?.id || `${routeId}-piece-${pieceIndex + 1}`,
+            name: piece.Name || template?.name || `Route Piece ${pieceIndex + 1}`,
+            type: "Route",
+            routeType: routeType.length > 0 ? routeType : template?.routeType || [],
+            startingSpots: Number(piece.StartingSpots ?? template?.startingSpots ?? 0),
+            marker: template?.marker || "R",
+            color: template?.color || "#7c3aed",
+            row: point.row,
+            col: point.col,
+            coordinates: piece.Coordinates,
+          };
+        }).filter(Boolean);
+
+        if (pieces.length < 1) return;
+
+        hydratedRoutes.push({
+          routeId,
+          name: entry.Name || `Route ${index + 1}`,
+          direction: null,
+          pieces,
+        });
+        routeCount += 1;
+      }
+    });
+
+    standaloneCounterRef.current = standaloneCount + 1;
+    routeCounterRef.current = routeCount + 1;
+    setPlacedStandalone(hydratedStandalone);
+    setCommittedRoutes(hydratedRoutes);
+    setSkatepark(source);
+  }, [gameState.skatepark]);
 
   const startingTargets = useMemo(() => {
     const targets = [];
@@ -472,11 +584,24 @@ export const useGridModel = () => {
     (value) => {
       const nextSize = Number(value);
       if (!Number.isInteger(nextSize) || nextSize < MIN_GRID_SIZE || nextSize > MAX_GRID_SIZE) return;
-      const hasPlacedPieces = placedStandalone.length > 0 || committedRoutes.length > 0 || Boolean(editingRoute);
-      if (hasPlacedPieces) return warning("Grid size cannot change after pieces are placed.");
+
+      if (nextSize === gridSize) return;
+
+      const allOccupiedCells = [
+        ...placedStandalone.flatMap((item) => item.tiles.map((tile) => ({ row: tile.row, col: tile.col }))),
+        ...committedRoutes.flatMap((route) => route.pieces.map((piece) => ({ row: piece.row, col: piece.col }))),
+        ...(editingRoute ? editingRoute.pieces.map((piece) => ({ row: piece.row, col: piece.col })) : []),
+      ];
+
+      const canFitInNextSize = allOccupiedCells.every((cell) => cell.row < nextSize && cell.col < nextSize);
+      if (!canFitInNextSize) {
+        warning("Grid cannot be reduced to that size because some pieces would be out of bounds.");
+        return;
+      }
+
       setGridSize(nextSize);
     },
-    [committedRoutes.length, editingRoute, placedStandalone.length, warning]
+    [committedRoutes, editingRoute, gridSize, placedStandalone, warning]
   );
 
   const animateSkaterOnTarget = useCallback(async (skaterId, target) => {

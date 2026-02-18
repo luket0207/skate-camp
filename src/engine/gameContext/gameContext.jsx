@@ -15,6 +15,9 @@ console.log(gameState.ui.top);
 const GameContext = createContext(null);
 
 const DEFAULT_GAME_STATE = Object.freeze({
+  meta: {
+    hasActiveGame: false,
+  },
   player: {
     health: 100,
     money: 0,
@@ -25,6 +28,9 @@ const DEFAULT_GAME_STATE = Object.freeze({
     top: "red",
     mid: "green",
     right: "blue",
+  },
+  skateparkConfig: {
+    gridSize: 3,
   },
   skatepark: [],
 });

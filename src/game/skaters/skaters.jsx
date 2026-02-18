@@ -2,10 +2,14 @@ import React, { useMemo, useState } from "react";
 import { useGame } from "../../engine/gameContext/gameContext";
 import Button, { BUTTON_VARIANT } from "../../engine/ui/button/button";
 import { generateBeginnerSkater, SKATER_SPORT } from "./skaterUtils";
+import { useModal, MODAL_BUTTONS } from "../../engine/ui/modal/modalContext";
+import TrickTreeModalContent from "./components/trickTreeModalContent";
+import { getLibraryLevelTotal, getTypeRatingsForSkater } from "./trickLibraryUtils";
 import "./skaters.scss";
 
 const Skaters = () => {
   const { gameState, setGameValue } = useGame();
+  const { openModal, closeModal } = useModal();
   const [debugSport, setDebugSport] = useState(SKATER_SPORT.SKATEBOARDER);
 
   const pool = useMemo(
@@ -23,6 +27,25 @@ const Skaters = () => {
       "player.skaterPool",
       pool.filter((skater) => skater.id !== skaterId)
     );
+  };
+
+  const openTreeModal = (skater) => {
+    openModal({
+      modalTitle: `${skater.name} Trick Tree`,
+      buttons: MODAL_BUTTONS.NONE,
+      modalContent: (
+        <TrickTreeModalContent
+          skater={skater}
+          onCommit={(nextLibrary) => {
+            const nextPool = pool.map((poolSkater) =>
+              poolSkater.id === skater.id ? { ...poolSkater, trickLibrary: nextLibrary } : poolSkater
+            );
+            setGameValue("player.skaterPool", nextPool);
+            closeModal();
+          }}
+        />
+      ),
+    });
   };
 
   return (
@@ -52,9 +75,19 @@ const Skaters = () => {
           <div key={skater.id} className="skatersPage__card">
             <div className="skatersPage__cardHead">
               <h4>{skater.name}</h4>
-              <Button variant={BUTTON_VARIANT.SECONDARY} onClick={() => removeSkater(skater.id)}>
-                Remove
-              </Button>
+              <div className="skatersPage__cardActions">
+                <Button variant={BUTTON_VARIANT.PRIMARY} onClick={() => openTreeModal(skater)}>
+                  Trick Tree
+                </Button>
+                <Button variant={BUTTON_VARIANT.SECONDARY} onClick={() => removeSkater(skater.id)}>
+                  Remove
+                </Button>
+              </div>
+            </div>
+
+            <div className="skatersPage__meta">
+              <span>Type Rating Total: {Object.values(getTypeRatingsForSkater(skater)).reduce((sum, value) => sum + value, 0)}</span>
+              <span>Trick Library Total: {getLibraryLevelTotal(skater.trickLibrary || [])}</span>
             </div>
 
             <pre>{JSON.stringify(skater, null, 2)}</pre>

@@ -1,3 +1,5 @@
+import { buildGeneratedTrickLibrary } from "./trickLibraryUtils";
+
 const FIRST_NAMES = ["Alex", "Mia", "Noah", "Zoe", "Liam", "Eva", "Jade", "Cole", "Ivy", "Finn"];
 const LAST_NAMES = ["Mercer", "Hart", "Price", "Quinn", "Ford", "Stone", "Vale", "Bishop", "Reed", "Cross"];
 
@@ -17,11 +19,11 @@ const weightedLowInt = (min, max, power = 1.75) => {
   return min + Math.floor(normalized * (max - min + 1));
 };
 
-const makeSkillFromPotential = (potential) => {
-  const raw = randInt(1, 20);
-  const boostWindow = Math.floor(((potential - 20) / 80) * 8);
+const makeSkillFromPotential = (potential, maxBase = 20) => {
+  const raw = randInt(1, maxBase);
+  const boostWindow = Math.floor(((potential - 20) / 80) * Math.max(1, Math.floor(maxBase / 2)));
   const bonus = boostWindow > 0 ? randInt(0, boostWindow) : 0;
-  const value = Math.min(20, raw + bonus);
+  const value = Math.min(maxBase, raw + bonus);
   return Math.max(1, Math.min(value, Math.max(1, potential - 1)));
 };
 
@@ -48,9 +50,8 @@ export const generateBeginnerSkater = (sport) => {
   const bigAirPotential = randInt(20, 100);
 
   const commonStats = {
-    stall: makeSkillFromPotential(stallPotential),
-    grind: makeSkillFromPotential(grindPotential),
-    bigAir: 0,
+    stall: makeSkillFromPotential(stallPotential, 6),
+    grind: makeSkillFromPotential(grindPotential, 6),
     stallPotential,
     grindPotential,
     bigAirPotential,
@@ -60,20 +61,22 @@ export const generateBeginnerSkater = (sport) => {
     safeSport === SKATER_SPORT.ROLLERBLADER
       ? {
           ...commonStats,
-          tech: makeSkillFromPotential(specialPotentialA),
-          spin: makeSkillFromPotential(specialPotentialB),
+          tech: makeSkillFromPotential(specialPotentialA, 6),
+          spin: makeSkillFromPotential(specialPotentialB, 6),
+          bigAir: 0,
           techPotential: specialPotentialA,
           spinPotential: specialPotentialB,
         }
       : {
           ...commonStats,
-          flip: makeSkillFromPotential(specialPotentialA),
-          grab: makeSkillFromPotential(specialPotentialB),
+          flip: makeSkillFromPotential(specialPotentialA, 6),
+          grab: makeSkillFromPotential(specialPotentialB, 6),
+          bigAir: 0,
           flipPotential: specialPotentialA,
           grabPotential: specialPotentialB,
         };
 
-  return {
+  const generated = {
     id: makeId(),
     name,
     initials: makeInitials(name),
@@ -88,6 +91,12 @@ export const generateBeginnerSkater = (sport) => {
     switchPotential: randInt(3, 10),
     ...trickStats,
     skillLevel: computeSkillLevel(trickStats),
+    trickLibrary: [],
+  };
+
+  return {
+    ...generated,
+    trickLibrary: buildGeneratedTrickLibrary(generated),
   };
 };
 
