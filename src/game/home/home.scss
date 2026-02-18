@@ -1,4 +1,4 @@
-@use "../../assets/scss/ui/import" as *;;
+@use "../../assets/scss/ui/import" as *;
 
 .home {
   display: flex;
@@ -28,4 +28,9 @@
       margin-bottom: 3rem;
     }
   }
+}
+
+.home_actions {
+  display: grid;
+  gap: 0.8rem;
 }

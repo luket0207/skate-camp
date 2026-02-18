@@ -1,0 +1,68 @@
+const routePieces = [
+  {
+    id: "route-start-end-1",
+    name: "Route Start/End Piece Example",
+    type: "Route",
+    routeType: ["Start", "End"],
+    marker: "RSE",
+    color: "#7c3aed",
+  },
+  {
+    id: "route-start-1",
+    name: "Route Start Piece Example",
+    type: "Route",
+    routeType: ["Start"],
+    marker: "RS1",
+    color: "#a855f7",
+  },
+  {
+    id: "route-middle-1",
+    name: "Route Middle Piece 1",
+    type: "Route",
+    routeType: ["Middle"],
+    marker: "RM1",
+    color: "#22c55e",
+  },
+  {
+    id: "route-middle-2",
+    name: "Route Middle Piece 2",
+    type: "Route",
+    routeType: ["Middle"],
+    marker: "RM2",
+    color: "#16a34a",
+  },
+  {
+    id: "route-middle-3",
+    name: "Route Middle Piece 3",
+    type: "Route",
+    routeType: ["Middle"],
+    marker: "RM3",
+    color: "#15803d",
+  },
+  {
+    id: "route-middle-4",
+    name: "Route Middle Piece 4",
+    type: "Route",
+    routeType: ["Middle"],
+    marker: "RM4",
+    color: "#166534",
+  },
+  {
+    id: "route-end-1",
+    name: "Route End Piece 1",
+    type: "Route",
+    routeType: ["End"],
+    marker: "RE1",
+    color: "#ef4444",
+  },
+  {
+    id: "route-end-2",
+    name: "Route End Piece 2",
+    type: "Route",
+    routeType: ["End"],
+    marker: "RE2",
+    color: "#dc2626",
+  },
+];
+
+export default routePieces;

@@ -1,0 +1,63 @@
+@use "../../../../assets/scss/ui/import" as *;
+
+.piecePalette {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  padding: 0.85rem;
+  color: $darkText;
+
+  h3,
+  h4 {
+    margin: 0;
+  }
+
+  p {
+    margin: 0.2rem 0 0.8rem;
+    font-size: 0.9rem;
+  }
+
+  h4 {
+    margin-top: 0.75rem;
+    font-size: 0.95rem;
+  }
+}
+
+.piecePalette__list {
+  display: flex;
+  gap: 0.65rem;
+  margin-top: 0.45rem;
+}
+
+.piecePalette__list--row {
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.pieceItem {
+  display: grid;
+  gap: 0.2rem;
+  justify-items: center;
+}
+
+.pieceCard {
+  width: var(--tile-size);
+  height: var(--tile-size);
+  min-width: var(--tile-size);
+  min-height: var(--tile-size);
+  border: 1px solid rgba(0, 0, 0, 0.28);
+  border-radius: 6px;
+  text-align: center;
+  background: #f8fafc;
+  cursor: grab;
+  color: $lightText;
+  padding: 0;
+  font-size: 0.5rem;
+  font-weight: 700;
+}
+
+.pieceItem__meta {
+  font-size: 0.6rem;
+  font-weight: 700;
+  white-space: nowrap;
+}

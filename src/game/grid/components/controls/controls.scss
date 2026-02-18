@@ -1,0 +1,48 @@
+@use "../../../../assets/scss/ui/import" as *;
+
+.gridControls {
+  display: grid;
+  gap: 0.75rem;
+  color: $lightText;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  padding: 0.8rem;
+
+  .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+.gridControls__group {
+  display: grid;
+  gap: 0.35rem;
+
+  label {
+    font-weight: 700;
+  }
+
+  select {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    padding: 0.45rem 0.6rem;
+    background: $secondaryBackground;
+    color: $secondaryForeground;
+  }
+}
+
+.gridControls__routeBlock {
+  min-height: 132px;
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  padding-top: 0.65rem;
+}
+
+.gridControls__routeStatus {
+  font-size: 0.85rem;
+  font-weight: 700;
+}

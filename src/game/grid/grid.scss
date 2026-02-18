@@ -1,0 +1,83 @@
+@use "../../assets/scss/ui/import" as *;
+
+.gridScene {
+  --tile-size: 40px;
+  --tile-gap: 4px;
+  --max-grid-size: 10;
+  --max-grid-px: calc(
+    (var(--tile-size) * var(--max-grid-size)) +
+    (var(--tile-gap) * (var(--max-grid-size) - 1)) +
+    1.3rem + 4px
+  );
+
+  min-height: 100vh;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.16) 0, transparent 38%),
+    radial-gradient(circle at 85% 10%, rgba(255, 255, 255, 0.12) 0, transparent 34%),
+    $siteBackground;
+  color: $lightText;
+
+  h1 {
+    margin: 0 0 1rem;
+    color: $lightText;
+  }
+}
+
+.gridScene__topRow {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.gridScene__boardWrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 0.2rem;
+  width: var(--max-grid-px);
+  height: var(--max-grid-px);
+}
+
+.gridScene__controlsWrap {
+  width: 240px;
+  min-width: 240px;
+}
+
+.gridScene__paletteWrap {
+  margin-top: 1rem;
+}
+
+.gridScene__debug {
+  margin-top: 1rem;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  padding: 0.75rem;
+  color: $darkText;
+
+  h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+    color: $darkText;
+  }
+
+  pre {
+    margin: 0;
+    max-height: 220px;
+    overflow: auto;
+    font-size: 0.8rem;
+    color: $darkText;
+  }
+}
+
+@media (max-width: 900px) {
+  .gridScene__topRow {
+    flex-direction: column;
+  }
+
+  .gridScene__controlsWrap {
+    width: 100%;
+    min-width: 0;
+  }
+}

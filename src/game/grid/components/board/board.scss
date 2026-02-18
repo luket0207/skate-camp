@@ -1,0 +1,11 @@
+@use "../../../../assets/scss/ui/import" as *;
+
+.gridBoard {
+  display: grid;
+  gap: var(--tile-gap);
+  padding: 0.65rem;
+  background: $primaryBackground;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.24);
+  width: max-content;
+}

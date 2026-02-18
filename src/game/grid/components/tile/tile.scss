@@ -1,0 +1,23 @@
+@use "../../../../assets/scss/ui/import" as *;
+
+.gridTile {
+  width: var(--tile-size);
+  height: var(--tile-size);
+  min-width: var(--tile-size);
+  min-height: var(--tile-size);
+  border: 1px solid rgba(0, 0, 0, 0.28);
+  border-radius: 6px;
+  background: #ffffff;
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: $darkText;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gridTile--editingRoute {
+  outline: 2px dashed $tertiaryBackground;
+}

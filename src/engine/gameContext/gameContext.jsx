@@ -25,6 +25,7 @@ const DEFAULT_GAME_STATE = Object.freeze({
     mid: "green",
     right: "blue",
   },
+  skatepark: [],
 });
 
 const setByPath = (obj, path, value) => {
