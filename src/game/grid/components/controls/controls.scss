@@ -15,6 +15,26 @@
   }
 }
 
+.gridControls__modeButtons {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.gridControls__sessionInfo {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  padding: 0.6rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.gridControls__editPanel {
+  display: grid;
+  gap: 0.75rem;
+}
+
 .gridControls__group {
   display: grid;
   gap: 0.35rem;

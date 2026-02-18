@@ -1,6 +1,7 @@
 import React from "react";
 import Controls from "./components/controls/controls";
 import PiecePalette from "./components/piecePalette/piecePalette";
+import SessionPanel from "./components/sessionPanel/sessionPanel";
 import Board from "./components/board/board";
 import { useGridModel } from "./components/hooks/useGridModel";
 import "./grid.scss";
@@ -17,6 +18,7 @@ const Grid = () => {
           <Board
             gridSize={model.gridSize}
             occupancy={model.occupancy}
+            skaterMarkers={model.skaterMarkers}
             onTileDrop={model.onTileDrop}
             onTileClick={model.onTileClick}
           />
@@ -25,23 +27,47 @@ const Grid = () => {
         <div className="gridScene__controlsWrap">
           <Controls
             gridSize={model.gridSize}
-            mode={model.mode}
+            gridMode={model.gridMode}
+            editMode={model.editMode}
             editingRoute={model.editingRoute}
+            sessionState={model.sessionState}
+            beginnerSport={model.beginnerSport}
+            canStartBeginnerSession={model.canStartBeginnerSession}
+            canStartNormalSession={model.canStartNormalSession}
+            playerSkaterPoolCount={model.playerSkaterPool.length}
+            startingSpotsCapacity={model.startingSpotsCapacity}
             onGridSizeChange={model.onGridSizeChange}
             onToggleDeleteMode={model.onToggleDeleteMode}
             onCancelRoute={model.onCancelRoute}
             onCommitRoute={model.onCommitRoute}
+            onStartBeginnerSession={model.onStartBeginnerSession}
+            onStartNormalSession={model.onStartNormalSession}
+            onGoToEditMode={model.onGoToEditMode}
+            onAdvanceTick={model.onAdvanceTick}
+            onBeginnerSportChange={model.onBeginnerSportChange}
           />
         </div>
       </div>
 
-      <div className="gridScene__paletteWrap">
-        <PiecePalette
-          standalonePieces={model.standalonePieces}
-          routePieces={model.routePieces}
-          routeModeActive={Boolean(model.editingRoute)}
-        />
-      </div>
+      {model.gridMode === "edit" && (
+        <div className="gridScene__paletteWrap">
+          <PiecePalette
+            standalonePieces={model.standalonePieces}
+            routePieces={model.routePieces}
+            routeModeActive={Boolean(model.editingRoute)}
+          />
+        </div>
+      )}
+
+      {model.gridMode === "session" && (
+        <div className="gridScene__paletteWrap">
+          <SessionPanel
+            sessionState={model.sessionState}
+            timeline={model.sessionTimeline}
+            runDisplay={model.sessionRunDisplay}
+          />
+        </div>
+      )}
 
       <div className="gridScene__debug">
         <h3>Debug: gameContext.skatepark</h3>

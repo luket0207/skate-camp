@@ -1,6 +1,7 @@
 @use "../../../../assets/scss/ui/import" as *;
 
 .gridTile {
+  position: relative;
   width: var(--tile-size);
   height: var(--tile-size);
   min-width: var(--tile-size);
@@ -20,4 +21,44 @@
 
 .gridTile--editingRoute {
   outline: 2px dashed $tertiaryBackground;
+}
+
+.gridTile__skaters {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.gridTile__skater {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 0.5rem;
+  font-weight: 700;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+}
+
+.gridTile__skater--slot1 {
+  top: 0;
+  left: 0;
+}
+
+.gridTile__skater--slot2 {
+  top: 0;
+  right: 0;
+}
+
+.gridTile__skater--slot3 {
+  bottom: 0;
+  left: 0;
+}
+
+.gridTile__skater--slot4 {
+  bottom: 0;
+  right: 0;
 }

@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React from "react";
 import standalonePieces from "../../../../assets/gameContent/pieces/standalone";
 import routePieces from "../../../../assets/gameContent/pieces/routes";
 import { useGame } from "../../../../engine/gameContext/gameContext";
 import { MODAL_BUTTONS, useModal } from "../../../../engine/ui/modal/modalContext";
 import { useToast } from "../../../../engine/ui/toast/toast";
+import Button, { BUTTON_VARIANT } from "../../../../engine/ui/button/button";
+import { generateBeginnerSkater, randomIntInclusive, shuffleItems, SKATER_SPORT } from "../../../skaters/skaterUtils";
 import {
   MAX_GRID_SIZE,
   MIN_GRID_SIZE,
@@ -16,6 +19,11 @@ import {
   makeTileKey,
   toCoordinate,
 } from "./gridUtils";
+
+const SESSION_TICKS = 20;
+const RUN_DURATION_MS = 2000;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const buildRoutePiece = (piece, row, col) => ({
   ...piece,
@@ -30,6 +38,7 @@ const makeStandaloneSkateparkEntry = (instance) => ({
   Type: "Standalone",
   Size: `${instance.size.rows}x${instance.size.cols}`,
   Coordinates: toCoordinate(instance.topLeft.row, instance.topLeft.col),
+  StartingSpots: instance.startingSpots,
 });
 
 const makeRouteSkateparkEntry = (route) => ({
@@ -41,8 +50,48 @@ const makeRouteSkateparkEntry = (route) => ({
     Type: "Route",
     RouteType: piece.routeType.join(", "),
     Coordinates: piece.coordinates,
+    StartingSpots: piece.startingSpots || 0,
   })),
 });
+
+const withSessionTiming = (skater) => {
+  const energy = Math.max(1, Math.min(15, skater.baseEnergy || 3));
+  const latestArrivalTick = Math.max(1, SESSION_TICKS - energy);
+  return {
+    ...skater,
+    energy,
+    arrivalTick: randomIntInclusive(1, latestArrivalTick),
+  };
+};
+
+const BeginnerRecruitModal = ({ skaters, onRecruit }) => {
+  return (
+    <div style={{ display: "grid", gap: "0.6rem" }}>
+      <p>Beginner session finished. Choose one skater to add to your pool.</p>
+      {skaters.map((skater) => (
+        <div
+          key={skater.id}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr auto",
+            gap: "0.5rem",
+            alignItems: "center",
+            padding: "0.4rem",
+            borderRadius: "8px",
+            background: "rgba(0,0,0,0.04)",
+          }}
+        >
+          <span>
+            {skater.name} | {skater.sport} | Energy {skater.baseEnergy}
+          </span>
+          <Button variant={BUTTON_VARIANT.PRIMARY} onClick={() => onRecruit(skater)}>
+            Recruit
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export const useGridModel = () => {
   const { setGameValue, gameState } = useGame();
@@ -50,11 +99,27 @@ export const useGridModel = () => {
   const { info, warning, success } = useToast();
 
   const [gridSize, setGridSize] = useState(6);
-  const [mode, setMode] = useState("build");
+  const [gridMode, setGridMode] = useState("edit");
+  const [editMode, setEditMode] = useState("build");
+  const [beginnerSport, setBeginnerSport] = useState(SKATER_SPORT.SKATEBOARDER);
   const [placedStandalone, setPlacedStandalone] = useState([]);
   const [committedRoutes, setCommittedRoutes] = useState([]);
   const [editingRoute, setEditingRoute] = useState(null);
+  const [playerSkaterPool, setPlayerSkaterPool] = useState(() =>
+    Array.isArray(gameState?.player?.skaterPool) ? gameState.player.skaterPool : []
+  );
   const [skatepark, setSkatepark] = useState(() => (Array.isArray(gameState.skatepark) ? gameState.skatepark : []));
+  const [sessionState, setSessionState] = useState({
+    isActive: false,
+    isTickRunning: false,
+    currentTick: 0,
+    maxTicks: SESSION_TICKS,
+    sessionType: "normal",
+    skaters: [],
+    beginnerCandidates: [],
+    assignments: {},
+    skaterPositions: {},
+  });
 
   const standaloneCounterRef = useRef(1);
   const routeCounterRef = useRef(1);
@@ -62,6 +127,91 @@ export const useGridModel = () => {
   useEffect(() => {
     setGameValue("skatepark", skatepark);
   }, [setGameValue, skatepark]);
+
+  useEffect(() => {
+    setGameValue("player.skaterPool", playerSkaterPool);
+  }, [playerSkaterPool, setGameValue]);
+
+  const startingTargets = useMemo(() => {
+    const targets = [];
+
+    placedStandalone.forEach((item) => {
+      targets.push({
+        targetId: `standalone-target-${item.instanceId}`,
+        type: "Standalone",
+        sourceId: item.instanceId,
+        label: `${item.name} (${toCoordinate(item.topLeft.row, item.topLeft.col)})`,
+        capacity: item.startingSpots || 0,
+        startCell: { row: item.topLeft.row, col: item.topLeft.col },
+        runTiles: item.tiles.map((tile) => ({ row: tile.row, col: tile.col })),
+      });
+    });
+
+    committedRoutes.forEach((route) => {
+      route.pieces.forEach((piece, pieceIndex) => {
+        if (!hasRouteType(piece, "Start")) return;
+        targets.push({
+          targetId: `route-target-${route.routeId}-${pieceIndex}`,
+          type: "Route",
+          sourceId: route.routeId,
+          label: `${route.name} (${piece.name} ${piece.coordinates})`,
+          capacity: piece.startingSpots || 0,
+          startCell: { row: piece.row, col: piece.col },
+          runTiles: route.pieces.slice(pieceIndex).map((routePiece) => ({ row: routePiece.row, col: routePiece.col })),
+        });
+      });
+    });
+
+    return targets.filter((target) => target.capacity > 0 && target.runTiles.length > 0);
+  }, [committedRoutes, placedStandalone]);
+
+  const startingTargetById = useMemo(() => {
+    const map = new Map();
+    startingTargets.forEach((target) => map.set(target.targetId, target));
+    return map;
+  }, [startingTargets]);
+
+  const startingSpotsCapacity = useMemo(
+    () => startingTargets.reduce((sum, target) => sum + target.capacity, 0),
+    [startingTargets]
+  );
+
+  const canStartBeginnerSession = useMemo(() => {
+    if (startingSpotsCapacity < 2) return false;
+    if (!sessionState.isActive) {
+      if (playerSkaterPool.length === 0) return true;
+      return startingSpotsCapacity > playerSkaterPool.length;
+    }
+    return false;
+  }, [playerSkaterPool.length, sessionState.isActive, startingSpotsCapacity]);
+
+  const canStartNormalSession = useMemo(
+    () => !sessionState.isActive && playerSkaterPool.length > 0,
+    [playerSkaterPool.length, sessionState.isActive]
+  );
+
+  const skaterById = useMemo(() => {
+    const map = new Map();
+    sessionState.skaters.forEach((skater) => map.set(skater.id, skater));
+    return map;
+  }, [sessionState.skaters]);
+
+  const skaterMarkers = useMemo(() => {
+    const markersByTile = new Map();
+    Object.entries(sessionState.skaterPositions).forEach(([skaterId, position]) => {
+      const skater = skaterById.get(skaterId);
+      if (!skater || !position) return;
+      const key = makeTileKey(position.row, position.col);
+      const list = markersByTile.get(key) || [];
+      list.push({
+        id: skater.id,
+        initials: skater.initials,
+        color: skater.color,
+      });
+      markersByTile.set(key, list);
+    });
+    return markersByTile;
+  }, [sessionState.skaterPositions, skaterById]);
 
   const occupancy = useMemo(() => {
     const map = new Map();
@@ -90,7 +240,7 @@ export const useGridModel = () => {
       });
     });
 
-    if (editingRoute) {
+    if (gridMode === "edit" && editingRoute) {
       editingRoute.pieces.forEach((piece) => {
         map.set(makeTileKey(piece.row, piece.col), {
           kind: "editing-route",
@@ -101,7 +251,7 @@ export const useGridModel = () => {
     }
 
     return map;
-  }, [placedStandalone, committedRoutes, editingRoute]);
+  }, [placedStandalone, committedRoutes, gridMode, editingRoute]);
 
   const placeStandalone = useCallback(
     (piece, row, col) => {
@@ -109,7 +259,6 @@ export const useGridModel = () => {
         warning("Finish or cancel the current route first.");
         return;
       }
-
       if (!canPlaceStandalone(row, col, piece.size, gridSize, occupancy)) {
         warning("This standalone piece cannot be placed there.");
         return;
@@ -122,6 +271,7 @@ export const useGridModel = () => {
         name: piece.name,
         type: piece.type,
         size: piece.size,
+        startingSpots: piece.startingSpots || 0,
         marker: piece.marker,
         color: piece.color,
         topLeft: { row, col },
@@ -141,7 +291,6 @@ export const useGridModel = () => {
         warning("A route must begin with a start piece.");
         return;
       }
-
       if (occupancy.has(makeTileKey(row, col))) {
         warning("That tile is already occupied.");
         return;
@@ -160,12 +309,10 @@ export const useGridModel = () => {
   const extendRoute = useCallback(
     (piece, row, col) => {
       if (!editingRoute) return;
-
       if (editingRoute.complete) {
         warning("This route is complete. Commit it or cancel it.");
         return;
       }
-
       if (occupancy.has(makeTileKey(row, col))) {
         warning("That tile is already occupied.");
         return;
@@ -179,13 +326,11 @@ export const useGridModel = () => {
           warning("The first piece after start must be a middle piece.");
           return;
         }
-
         const direction = getDirectionFromFirstMiddle(routePiecesList[0], { row, col });
         if (!direction) {
           warning("First middle tile must be directly north, south, east or west of the start.");
           return;
         }
-
         setEditingRoute((prev) => ({
           ...prev,
           direction,
@@ -207,7 +352,6 @@ export const useGridModel = () => {
 
       const nextPiece = buildRoutePiece(piece, row, col);
       const isComplete = hasRouteType(piece, "End");
-
       setEditingRoute((prev) => ({
         ...prev,
         complete: isComplete,
@@ -219,29 +363,23 @@ export const useGridModel = () => {
 
   const onTileDrop = useCallback(
     (row, col, payload) => {
-      if (mode === "delete") {
+      if (gridMode !== "edit") {
+        warning("Skatepark cannot be edited during session mode.");
+        return;
+      }
+      if (editMode === "delete") {
         warning("Disable delete mode before placing pieces.");
         return;
       }
 
       const piece = [...standalonePieces, ...routePieces].find((item) => item.id === payload.pieceId);
-      if (!piece) return;
+      if (!piece || !inBounds(row, col, gridSize)) return;
 
-      if (!inBounds(row, col, gridSize)) return;
-
-      if (piece.type === "Standalone") {
-        placeStandalone(piece, row, col);
-        return;
-      }
-
-      if (!editingRoute) {
-        startRoute(piece, row, col);
-        return;
-      }
-
-      extendRoute(piece, row, col);
+      if (piece.type === "Standalone") return placeStandalone(piece, row, col);
+      if (!editingRoute) return startRoute(piece, row, col);
+      return extendRoute(piece, row, col);
     },
-    [editingRoute, extendRoute, gridSize, mode, placeStandalone, startRoute, warning]
+    [editingRoute, editMode, extendRoute, gridMode, gridSize, placeStandalone, startRoute, warning]
   );
 
   const onCancelRoute = useCallback(() => {
@@ -273,7 +411,7 @@ export const useGridModel = () => {
     (instanceId) => {
       setPlacedStandalone((prev) => prev.filter((item) => item.instanceId !== instanceId));
       setSkatepark((prev) => prev.filter((entry) => entry.id !== instanceId));
-      setMode("build");
+      setEditMode("build");
       success("Standalone piece removed.");
     },
     [success]
@@ -283,7 +421,7 @@ export const useGridModel = () => {
     (routeId) => {
       setCommittedRoutes((prev) => prev.filter((route) => route.routeId !== routeId));
       setSkatepark((prev) => prev.filter((entry) => entry.id !== routeId));
-      setMode("build");
+      setEditMode("build");
       success("Route removed.");
     },
     [success]
@@ -291,8 +429,7 @@ export const useGridModel = () => {
 
   const onTileClick = useCallback(
     (row, col) => {
-      if (mode !== "delete") return;
-
+      if (gridMode !== "edit" || editMode !== "delete") return;
       const item = occupancy.get(makeTileKey(row, col));
       if (!item) return;
 
@@ -322,46 +459,252 @@ export const useGridModel = () => {
         });
       }
     },
-    [closeModal, mode, occupancy, openModal, removeRoute, removeStandalone]
+    [closeModal, editMode, gridMode, occupancy, openModal, removeRoute, removeStandalone]
   );
 
   const onToggleDeleteMode = useCallback(() => {
-    if (editingRoute) {
-      warning("Cancel or commit the route before entering delete mode.");
-      return;
-    }
-    setMode((prev) => (prev === "delete" ? "build" : "delete"));
-  }, [editingRoute, warning]);
+    if (gridMode !== "edit") return warning("Delete mode is only available in Edit Skatepark mode.");
+    if (editingRoute) return warning("Cancel or commit the route before entering delete mode.");
+    setEditMode((prev) => (prev === "delete" ? "build" : "delete"));
+  }, [editingRoute, gridMode, warning]);
 
   const onGridSizeChange = useCallback(
     (value) => {
       const nextSize = Number(value);
       if (!Number.isInteger(nextSize) || nextSize < MIN_GRID_SIZE || nextSize > MAX_GRID_SIZE) return;
-
       const hasPlacedPieces = placedStandalone.length > 0 || committedRoutes.length > 0 || Boolean(editingRoute);
-      if (hasPlacedPieces) {
-        warning("Grid size cannot change after pieces are placed.");
-        return;
-      }
-
+      if (hasPlacedPieces) return warning("Grid size cannot change after pieces are placed.");
       setGridSize(nextSize);
     },
     [committedRoutes.length, editingRoute, placedStandalone.length, warning]
   );
 
+  const animateSkaterOnTarget = useCallback(async (skaterId, target) => {
+    const routeTiles = target.type === "Route" ? target.runTiles : shuffleItems(target.runTiles);
+    const tiles = routeTiles.length > 0 ? routeTiles : [target.startCell];
+    const waitMs = RUN_DURATION_MS / Math.max(1, tiles.length);
+
+    for (const tile of tiles) {
+      setSessionState((prev) => ({
+        ...prev,
+        skaterPositions: {
+          ...prev.skaterPositions,
+          [skaterId]: { row: tile.row, col: tile.col },
+        },
+      }));
+      await sleep(waitMs);
+    }
+  }, []);
+
+  const startSessionWithSkaters = useCallback(
+    (sessionType, baseSkaters) => {
+      const skaters = baseSkaters.map(withSessionTiming);
+
+      setGridMode("session");
+      setEditMode("build");
+      setSessionState({
+        isActive: true,
+        isTickRunning: false,
+        currentTick: 0,
+        maxTicks: SESSION_TICKS,
+        sessionType,
+        skaters,
+        beginnerCandidates: sessionType === "beginner" ? baseSkaters : [],
+        assignments: {},
+        skaterPositions: {},
+      });
+
+      success(`${sessionType === "beginner" ? "Beginner" : "Normal"} session started.`);
+    },
+    [success]
+  );
+
+  const onStartBeginnerSession = useCallback(() => {
+    if (editingRoute) return warning("Commit or cancel the current route first.");
+    if (!canStartBeginnerSession) return warning("Beginner session is not available right now.");
+
+    const count = randomIntInclusive(2, startingSpotsCapacity);
+    const generatedSkaters = Array.from({ length: count }, () => generateBeginnerSkater(beginnerSport));
+    startSessionWithSkaters("beginner", generatedSkaters);
+  }, [beginnerSport, canStartBeginnerSession, editingRoute, startSessionWithSkaters, startingSpotsCapacity, warning]);
+
+  const onStartNormalSession = useCallback(() => {
+    if (editingRoute) return warning("Commit or cancel the current route first.");
+    if (!canStartNormalSession) return warning("Add skaters to your pool before starting a normal session.");
+    if (startingSpotsCapacity < 1) return warning("No starting spots are available in this skatepark.");
+
+    const selected = shuffleItems(playerSkaterPool).slice(0, Math.min(playerSkaterPool.length, startingSpotsCapacity));
+    if (selected.length < 1) return warning("No skaters can be assigned to this session.");
+
+    startSessionWithSkaters("normal", selected);
+  }, [
+    canStartNormalSession,
+    editingRoute,
+    playerSkaterPool,
+    startSessionWithSkaters,
+    startingSpotsCapacity,
+    warning,
+  ]);
+
+  const onGoToEditMode = useCallback(() => {
+    if (sessionState.isActive) return warning("Cannot edit skatepark while a session is active.");
+    setGridMode("edit");
+    setEditMode("build");
+    setSessionState((prev) => ({
+      ...prev,
+      isTickRunning: false,
+      assignments: {},
+      skaterPositions: {},
+    }));
+  }, [sessionState.isActive, warning]);
+
+  const onAdvanceTick = useCallback(async () => {
+    if (gridMode !== "session" || !sessionState.isActive || sessionState.isTickRunning) return;
+    const nextTick = sessionState.currentTick + 1;
+    if (nextTick > SESSION_TICKS) return;
+
+    const activeSkaters = sessionState.skaters.filter(
+      (skater) => nextTick >= skater.arrivalTick && nextTick < skater.arrivalTick + skater.energy
+    );
+
+    const availableSlots = [];
+    startingTargets.forEach((target) => {
+      for (let i = 0; i < target.capacity; i++) availableSlots.push(target.targetId);
+    });
+
+    const assignments = {};
+    for (const skater of shuffleItems(activeSkaters)) {
+      if (availableSlots.length < 1) break;
+      const slotIndex = randomIntInclusive(0, availableSlots.length - 1);
+      const [targetId] = availableSlots.splice(slotIndex, 1);
+      assignments[skater.id] = targetId;
+    }
+
+    const startPositions = {};
+    Object.entries(assignments).forEach(([skaterId, targetId]) => {
+      const target = startingTargetById.get(targetId);
+      if (!target) return;
+      startPositions[skaterId] = { row: target.startCell.row, col: target.startCell.col };
+    });
+
+    setSessionState((prev) => ({
+      ...prev,
+      isTickRunning: true,
+      currentTick: nextTick,
+      assignments,
+      skaterPositions: startPositions,
+    }));
+
+    const runOrder = shuffleItems(activeSkaters).filter((skater) => assignments[skater.id]);
+    for (const skater of runOrder) {
+      const target = startingTargetById.get(assignments[skater.id]);
+      if (!target) continue;
+      await animateSkaterOnTarget(skater.id, target);
+    }
+
+    const sessionEnded = nextTick >= SESSION_TICKS;
+    setSessionState((prev) => ({
+      ...prev,
+      isTickRunning: false,
+      isActive: sessionEnded ? false : prev.isActive,
+      assignments: sessionEnded ? {} : prev.assignments,
+      skaterPositions: sessionEnded ? {} : prev.skaterPositions,
+    }));
+
+    if (sessionEnded && sessionState.sessionType === "beginner" && sessionState.beginnerCandidates.length > 0) {
+      openModal({
+        modalTitle: "Recruit A Beginner",
+        modalContent: (
+          <BeginnerRecruitModal
+            skaters={sessionState.beginnerCandidates}
+            onRecruit={(skater) => {
+              setPlayerSkaterPool((prev) => [...prev, skater]);
+              closeModal();
+              success(`${skater.name} added to your skater pool.`);
+            }}
+          />
+        ),
+        buttons: MODAL_BUTTONS.NONE,
+      });
+    }
+
+    if (sessionEnded) success("Session ended after 20 ticks.");
+  }, [
+    animateSkaterOnTarget,
+    closeModal,
+    gridMode,
+    openModal,
+    sessionState,
+    startingTargetById,
+    startingTargets,
+    success,
+  ]);
+
+  const sessionTimeline = useMemo(() => {
+    return [...sessionState.skaters]
+      .sort((a, b) => a.arrivalTick - b.arrivalTick)
+      .map((skater) => ({
+        id: skater.id,
+        name: skater.name,
+        initials: skater.initials,
+        arrivalTick: skater.arrivalTick,
+        energy: skater.energy,
+        leaveTick: skater.arrivalTick + skater.energy - 1,
+      }));
+  }, [sessionState.skaters]);
+
+  const sessionRunDisplay = useMemo(() => {
+    if (sessionState.currentTick < 1) return [];
+
+    return sessionState.skaters
+      .filter(
+        (skater) =>
+          sessionState.currentTick >= skater.arrivalTick &&
+          sessionState.currentTick < skater.arrivalTick + skater.energy
+      )
+      .map((skater) => {
+        const assignedTargetId = sessionState.assignments[skater.id];
+        const target = assignedTargetId ? startingTargetById.get(assignedTargetId) : null;
+        const energyLeft = Math.max(0, skater.arrivalTick + skater.energy - sessionState.currentTick);
+        return {
+          id: skater.id,
+          name: skater.name,
+          initials: skater.initials,
+          color: skater.color,
+          startingOn: target ? target.label : "No start chosen this tick",
+          energyLeft,
+        };
+      });
+  }, [sessionState.assignments, sessionState.currentTick, sessionState.skaters, startingTargetById]);
+
   return {
     gridSize,
-    mode,
+    gridMode,
+    editMode,
     editingRoute,
-    occupancy,
     skatepark,
+    occupancy,
+    skaterMarkers,
     standalonePieces,
     routePieces,
+    sessionState,
+    sessionTimeline,
+    sessionRunDisplay,
+    playerSkaterPool,
+    beginnerSport,
+    canStartBeginnerSession,
+    canStartNormalSession,
+    startingSpotsCapacity,
     onTileDrop,
     onTileClick,
     onCancelRoute,
     onCommitRoute,
     onToggleDeleteMode,
     onGridSizeChange,
+    onStartBeginnerSession,
+    onStartNormalSession,
+    onGoToEditMode,
+    onAdvanceTick,
+    onBeginnerSportChange: setBeginnerSport,
   };
 };

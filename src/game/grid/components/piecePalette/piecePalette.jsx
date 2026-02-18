@@ -71,8 +71,8 @@ const PieceCard = ({ piece }) => (
 
     <div className="pieceItem__meta">
       {piece.type === "Standalone"
-        ? `${piece.size.rows}x${piece.size.cols}`
-        : renderRouteType(piece.routeType)}
+        ? `${piece.size.rows}x${piece.size.cols} | Spots ${piece.startingSpots || 0}`
+        : `${renderRouteType(piece.routeType)} | Spots ${piece.startingSpots || 0}`}
     </div>
   </div>
 );

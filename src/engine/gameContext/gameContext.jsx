@@ -19,6 +19,7 @@ const DEFAULT_GAME_STATE = Object.freeze({
     health: 100,
     money: 0,
     progress: 0,
+    skaterPool: [],
   },
   ui: {
     top: "red",

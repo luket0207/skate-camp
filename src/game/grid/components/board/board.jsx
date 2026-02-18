@@ -2,7 +2,7 @@ import React from "react";
 import Tile from "../tile/tile";
 import "./board.scss";
 
-const Board = ({ gridSize, occupancy, onTileDrop, onTileClick }) => {
+const Board = ({ gridSize, occupancy, skaterMarkers, onTileDrop, onTileClick }) => {
   const tiles = [];
 
   for (let row = 0; row < gridSize; row++) {
@@ -26,6 +26,7 @@ const Board = ({ gridSize, occupancy, onTileDrop, onTileClick }) => {
             row={tile.row}
             col={tile.col}
             occupant={occupancy.get(key)}
+            skaters={skaterMarkers.get(key) || []}
             onDrop={onTileDrop}
             onClick={onTileClick}
           />

@@ -1,0 +1,73 @@
+@use "../../../../assets/scss/ui/import" as *;
+
+.sessionPanel {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  padding: 0.85rem;
+  color: $darkText;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.sessionPanel__section {
+  display: grid;
+  gap: 0.5rem;
+
+  h3 {
+    margin: 0;
+    font-size: 0.95rem;
+  }
+}
+
+.sessionPanel__timeline {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.sessionPanel__timelineItem,
+.sessionPanel__runItem {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.78rem;
+  padding: 0.45rem;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+}
+
+.sessionPanel__runItem {
+  grid-template-columns: auto 120px 1fr auto;
+}
+
+.sessionPanel__badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: $primaryBackground;
+  color: $primaryForeground;
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.sessionPanel__runInfo {
+  display: flex;
+  gap: 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.sessionPanel__empty {
+  font-size: 0.78rem;
+  opacity: 0.8;
+}
+
+@media (max-width: 900px) {
+  .sessionPanel__runItem {
+    grid-template-columns: auto 1fr;
+  }
+}
