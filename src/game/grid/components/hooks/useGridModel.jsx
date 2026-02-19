@@ -19,11 +19,47 @@ import {
   makeTileKey,
   toCoordinate,
 } from "./gridUtils";
+import { buildTrickAttemptsForRun } from "./sessionTrickUtils";
 
 const SESSION_TICKS = 20;
 const RUN_DURATION_MS = 2000;
+const MIN_TICK_DURATION_MS = 500;
+const SESSION_CLOCK_DEFAULT = {
+  totalTicks: SESSION_TICKS,
+  ticksRemaining: SESSION_TICKS,
+  currentTick: 0,
+};
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const toNumeric = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const getMiddleSpeedInvalidReason = (piece, currentSpeed) => {
+  const speedCost = Math.max(0, toNumeric(piece?.speedCost) || 0);
+  const maxEntranceSpeed = toNumeric(piece?.maxEntranceSpeed);
+
+  if (currentSpeed < speedCost) {
+    return `Needs at least speed ${speedCost}. Current route speed is ${currentSpeed}.`;
+  }
+
+  if (maxEntranceSpeed !== null && currentSpeed > maxEntranceSpeed) {
+    return `Current route speed ${currentSpeed} exceeds max entrance speed ${maxEntranceSpeed}.`;
+  }
+
+  return null;
+};
+
+const getRouteSpeedAfterPieces = (pieces) => {
+  if (!Array.isArray(pieces) || pieces.length < 1) return 0;
+  const startDropSpeed = Math.max(0, toNumeric(pieces[0]?.dropSpeed) || 0);
+  const middleCost = pieces
+    .slice(1)
+    .filter((piece) => hasRouteType(piece, "Middle"))
+    .reduce((sum, piece) => sum + Math.max(0, toNumeric(piece.speedCost) || 0), 0);
+  return Math.max(0, startDropSpeed - middleCost);
+};
 
 const parseCoordinate = (coordinate) => {
   if (typeof coordinate !== "string" || coordinate.length < 2) return null;
@@ -59,6 +95,8 @@ const makeStandaloneSkateparkEntry = (instance) => ({
   Size: `${instance.size.rows}x${instance.size.cols}`,
   Coordinates: toCoordinate(instance.topLeft.row, instance.topLeft.col),
   StartingSpots: instance.startingSpots,
+  TrickOpportunities: instance.trickOpportunities || 0,
+  Difficulty: instance.difficulty || null,
 });
 
 const makeRouteSkateparkEntry = (route) => ({
@@ -71,6 +109,8 @@ const makeRouteSkateparkEntry = (route) => ({
     RouteType: piece.routeType.join(", "),
     Coordinates: piece.coordinates,
     StartingSpots: piece.startingSpots || 0,
+    TrickOpportunities: piece.trickOpportunities || 0,
+    Difficulty: piece.difficulty || null,
   })),
 });
 
@@ -84,31 +124,18 @@ const withSessionTiming = (skater) => {
   };
 };
 
-const BeginnerRecruitModal = ({ skaters, onRecruit }) => {
+const BeginnerSportModal = ({ onChoose }) => {
   return (
     <div style={{ display: "grid", gap: "0.6rem" }}>
-      <p>Beginner session finished. Choose one skater to add to your pool.</p>
-      {skaters.map((skater) => (
-        <div
-          key={skater.id}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr auto",
-            gap: "0.5rem",
-            alignItems: "center",
-            padding: "0.4rem",
-            borderRadius: "8px",
-            background: "rgba(0,0,0,0.04)",
-          }}
-        >
-          <span>
-            {skater.name} | {skater.sport} | Energy {skater.baseEnergy}
-          </span>
-          <Button variant={BUTTON_VARIANT.PRIMARY} onClick={() => onRecruit(skater)}>
-            Recruit
-          </Button>
-        </div>
-      ))}
+      <p>Choose the beginner session sport.</p>
+      <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+        <Button variant={BUTTON_VARIANT.PRIMARY} onClick={() => onChoose(SKATER_SPORT.SKATEBOARDER)}>
+          Skateboarder
+        </Button>
+        <Button variant={BUTTON_VARIANT.SECONDARY} onClick={() => onChoose(SKATER_SPORT.ROLLERBLADER)}>
+          Rollerblader
+        </Button>
+      </div>
     </div>
   );
 };
@@ -127,7 +154,6 @@ export const useGridModel = () => {
   });
   const [gridMode, setGridMode] = useState("edit");
   const [editMode, setEditMode] = useState("build");
-  const [beginnerSport, setBeginnerSport] = useState(SKATER_SPORT.SKATEBOARDER);
   const [placedStandalone, setPlacedStandalone] = useState([]);
   const [committedRoutes, setCommittedRoutes] = useState([]);
   const [editingRoute, setEditingRoute] = useState(null);
@@ -145,6 +171,10 @@ export const useGridModel = () => {
     beginnerCandidates: [],
     assignments: {},
     skaterPositions: {},
+    trickAttempts: [],
+    currentTickTrickAttempts: [],
+    recruitedSkaterIds: [],
+    clock: SESSION_CLOCK_DEFAULT,
   });
 
   const standaloneCounterRef = useRef(1);
@@ -193,6 +223,8 @@ export const useGridModel = () => {
           startingSpots: Number(entry.StartingSpots ?? template?.startingSpots ?? 0),
           marker: template?.marker || "S",
           color: template?.color || "#f97316",
+          trickOpportunities: Number(entry.TrickOpportunities ?? template?.trickOpportunities ?? 0),
+          difficulty: entry.Difficulty ?? template?.difficulty ?? null,
           topLeft,
           tiles: buildStandaloneTiles(topLeft.row, topLeft.col, size),
         });
@@ -219,6 +251,8 @@ export const useGridModel = () => {
             startingSpots: Number(piece.StartingSpots ?? template?.startingSpots ?? 0),
             marker: template?.marker || "R",
             color: template?.color || "#7c3aed",
+            trickOpportunities: Number(piece.TrickOpportunities ?? template?.trickOpportunities ?? 0),
+            difficulty: piece.Difficulty ?? template?.difficulty ?? null,
             row: point.row,
             col: point.col,
             coordinates: piece.Coordinates,
@@ -256,6 +290,14 @@ export const useGridModel = () => {
         capacity: item.startingSpots || 0,
         startCell: { row: item.topLeft.row, col: item.topLeft.col },
         runTiles: item.tiles.map((tile) => ({ row: tile.row, col: tile.col })),
+        runPieces: [
+          {
+            name: item.name,
+            coordinate: toCoordinate(item.topLeft.row, item.topLeft.col),
+            trickOpportunities: item.trickOpportunities || 0,
+            difficulty: item.difficulty || null,
+          },
+        ],
       });
     });
 
@@ -270,6 +312,12 @@ export const useGridModel = () => {
           capacity: piece.startingSpots || 0,
           startCell: { row: piece.row, col: piece.col },
           runTiles: route.pieces.slice(pieceIndex).map((routePiece) => ({ row: routePiece.row, col: routePiece.col })),
+          runPieces: route.pieces.slice(pieceIndex).map((routePiece) => ({
+            name: routePiece.name,
+            coordinate: routePiece.coordinates,
+            trickOpportunities: routePiece.trickOpportunities || 0,
+            difficulty: routePiece.difficulty || null,
+          })),
         });
       });
     });
@@ -282,6 +330,40 @@ export const useGridModel = () => {
     startingTargets.forEach((target) => map.set(target.targetId, target));
     return map;
   }, [startingTargets]);
+
+  const allSkateparkRunPieces = useMemo(() => {
+    const pieces = [];
+    const seen = new Set();
+
+    placedStandalone.forEach((item) => {
+      const coordinate = toCoordinate(item.topLeft.row, item.topLeft.col);
+      const key = `${item.name}|${coordinate}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      pieces.push({
+        name: item.name,
+        coordinate,
+        trickOpportunities: item.trickOpportunities || 0,
+        difficulty: item.difficulty || null,
+      });
+    });
+
+    committedRoutes.forEach((route) => {
+      route.pieces.forEach((piece) => {
+        const key = `${piece.name}|${piece.coordinates}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        pieces.push({
+          name: piece.name,
+          coordinate: piece.coordinates,
+          trickOpportunities: piece.trickOpportunities || 0,
+          difficulty: piece.difficulty || null,
+        });
+      });
+    });
+
+    return pieces;
+  }, [committedRoutes, placedStandalone]);
 
   const startingSpotsCapacity = useMemo(
     () => startingTargets.reduce((sum, target) => sum + target.capacity, 0),
@@ -386,6 +468,8 @@ export const useGridModel = () => {
         startingSpots: piece.startingSpots || 0,
         marker: piece.marker,
         color: piece.color,
+        trickOpportunities: piece.trickOpportunities || 0,
+        difficulty: piece.difficulty || null,
         topLeft: { row, col },
         tiles,
       };
@@ -412,6 +496,7 @@ export const useGridModel = () => {
         pieces: [buildRoutePiece(piece, row, col)],
         direction: null,
         complete: false,
+        currentSpeed: Math.max(0, toNumeric(piece.dropSpeed) || 0),
       });
       info("Route mode started. Place a middle piece next to the start.");
     },
@@ -438,14 +523,21 @@ export const useGridModel = () => {
           warning("The first piece after start must be a middle piece.");
           return;
         }
+        const speedReason = getMiddleSpeedInvalidReason(piece, editingRoute.currentSpeed || 0);
+        if (speedReason) {
+          warning(speedReason);
+          return;
+        }
         const direction = getDirectionFromFirstMiddle(routePiecesList[0], { row, col });
         if (!direction) {
           warning("First middle tile must be directly north, south, east or west of the start.");
           return;
         }
+        const speedCost = Math.max(0, toNumeric(piece.speedCost) || 0);
         setEditingRoute((prev) => ({
           ...prev,
           direction,
+          currentSpeed: Math.max(0, (prev.currentSpeed || 0) - speedCost),
           pieces: [...prev.pieces, buildRoutePiece(piece, row, col)],
         }));
         return;
@@ -454,6 +546,13 @@ export const useGridModel = () => {
       if (!hasRouteType(piece, "Middle") && !hasRouteType(piece, "End")) {
         warning("Only middle or end pieces can be used now.");
         return;
+      }
+      if (hasRouteType(piece, "Middle")) {
+        const speedReason = getMiddleSpeedInvalidReason(piece, editingRoute.currentSpeed || 0);
+        if (speedReason) {
+          warning(speedReason);
+          return;
+        }
       }
 
       const expected = getNextCellByDirection(lastPiece.row, lastPiece.col, editingRoute.direction);
@@ -464,9 +563,11 @@ export const useGridModel = () => {
 
       const nextPiece = buildRoutePiece(piece, row, col);
       const isComplete = hasRouteType(piece, "End");
+      const speedCost = hasRouteType(piece, "Middle") ? Math.max(0, toNumeric(piece.speedCost) || 0) : 0;
       setEditingRoute((prev) => ({
         ...prev,
         complete: isComplete,
+        currentSpeed: Math.max(0, (prev.currentSpeed || 0) - speedCost),
         pieces: [...prev.pieces, nextPiece],
       }));
     },
@@ -486,6 +587,40 @@ export const useGridModel = () => {
 
       const piece = [...standalonePieces, ...routePieces].find((item) => item.id === payload.pieceId);
       if (!piece || !inBounds(row, col, gridSize)) return;
+      if (piece.type === "Route") {
+        if (editingRoute?.complete) {
+          warning("Route is complete. Commit it or cancel it.");
+          return;
+        }
+        if (!editingRoute) {
+          if (!hasRouteType(piece, "Start")) {
+            warning("A route must begin with a start piece.");
+            return;
+          }
+        } else if (editingRoute.pieces.length === 1) {
+          if (!hasRouteType(piece, "Middle")) {
+            warning("The first piece after start must be a middle piece.");
+            return;
+          }
+          const speedReason = getMiddleSpeedInvalidReason(piece, editingRoute.currentSpeed || 0);
+          if (speedReason) {
+            warning(speedReason);
+            return;
+          }
+        } else {
+          if (!hasRouteType(piece, "Middle") && !hasRouteType(piece, "End")) {
+            warning("Only middle or end pieces can be used now.");
+            return;
+          }
+          if (hasRouteType(piece, "Middle")) {
+            const speedReason = getMiddleSpeedInvalidReason(piece, editingRoute.currentSpeed || 0);
+            if (speedReason) {
+              warning(speedReason);
+              return;
+            }
+          }
+        }
+      }
 
       if (piece.type === "Standalone") return placeStandalone(piece, row, col);
       if (!editingRoute) return startRoute(piece, row, col);
@@ -499,6 +634,20 @@ export const useGridModel = () => {
     setEditingRoute(null);
     info("Route cancelled.");
   }, [editingRoute, info]);
+
+  const onRemoveLastRoutePiece = useCallback(() => {
+    if (!editingRoute || editingRoute.pieces.length <= 1) return;
+    setEditingRoute((prev) => {
+      const nextPieces = prev.pieces.slice(0, -1);
+      return {
+        ...prev,
+        pieces: nextPieces,
+        complete: false,
+        direction: nextPieces.length <= 1 ? null : prev.direction,
+        currentSpeed: getRouteSpeedAfterPieces(nextPieces),
+      };
+    });
+  }, [editingRoute]);
 
   const onCommitRoute = useCallback(() => {
     if (!editingRoute || !editingRoute.complete) {
@@ -604,6 +753,44 @@ export const useGridModel = () => {
     [committedRoutes, editingRoute, gridSize, placedStandalone, warning]
   );
 
+  const canPlaceMiddleBySpeed = useMemo(() => {
+    if (!editingRoute) return false;
+    if (editingRoute.pieces.length <= 1) return true;
+    if (editingRoute.complete) return false;
+    const currentSpeed = editingRoute.currentSpeed || 0;
+    if (currentSpeed <= 0) return false;
+    return routePieces.some(
+      (piece) => hasRouteType(piece, "Middle") && !getMiddleSpeedInvalidReason(piece, currentSpeed)
+    );
+  }, [editingRoute, routePieces]);
+
+  const getPieceDragInvalidReason = useCallback(
+    (piece) => {
+      if (!piece || piece.type !== "Route") return null;
+      if (gridMode !== "edit") return "Skatepark cannot be edited during session mode.";
+      if (editMode === "delete") return "Disable delete mode before placing pieces.";
+      if (editingRoute?.complete) return "Route is complete. Commit or cancel it first.";
+
+      if (!editingRoute) {
+        return hasRouteType(piece, "Start") ? null : "A route must begin with a start piece.";
+      }
+
+      if (editingRoute.pieces.length === 1) {
+        if (!hasRouteType(piece, "Middle")) return "First piece after start must be a middle piece.";
+        return getMiddleSpeedInvalidReason(piece, editingRoute.currentSpeed || 0);
+      }
+
+      if (!hasRouteType(piece, "Middle") && !hasRouteType(piece, "End")) {
+        return "Only middle or end pieces can be placed now.";
+      }
+      if (hasRouteType(piece, "Middle")) {
+        return getMiddleSpeedInvalidReason(piece, editingRoute.currentSpeed || 0);
+      }
+      return null;
+    },
+    [editMode, editingRoute, gridMode]
+  );
+
   const animateSkaterOnTarget = useCallback(async (skaterId, target) => {
     const routeTiles = target.type === "Route" ? target.runTiles : shuffleItems(target.runTiles);
     const tiles = routeTiles.length > 0 ? routeTiles : [target.startCell];
@@ -637,6 +824,10 @@ export const useGridModel = () => {
         beginnerCandidates: sessionType === "beginner" ? baseSkaters : [],
         assignments: {},
         skaterPositions: {},
+        trickAttempts: [],
+        currentTickTrickAttempts: [],
+        recruitedSkaterIds: [],
+        clock: SESSION_CLOCK_DEFAULT,
       });
 
       success(`${sessionType === "beginner" ? "Beginner" : "Normal"} session started.`);
@@ -648,10 +839,29 @@ export const useGridModel = () => {
     if (editingRoute) return warning("Commit or cancel the current route first.");
     if (!canStartBeginnerSession) return warning("Beginner session is not available right now.");
 
-    const count = randomIntInclusive(2, startingSpotsCapacity);
-    const generatedSkaters = Array.from({ length: count }, () => generateBeginnerSkater(beginnerSport));
-    startSessionWithSkaters("beginner", generatedSkaters);
-  }, [beginnerSport, canStartBeginnerSession, editingRoute, startSessionWithSkaters, startingSpotsCapacity, warning]);
+    openModal({
+      modalTitle: "Choose Beginner Session Sport",
+      buttons: MODAL_BUTTONS.NONE,
+      modalContent: (
+        <BeginnerSportModal
+          onChoose={(sport) => {
+            const count = Math.ceil(startingSpotsCapacity / 2);
+            const generatedSkaters = Array.from({ length: count }, () => generateBeginnerSkater(sport));
+            closeModal();
+            startSessionWithSkaters("beginner", generatedSkaters);
+          }}
+        />
+      ),
+    });
+  }, [
+    canStartBeginnerSession,
+    closeModal,
+    editingRoute,
+    openModal,
+    startSessionWithSkaters,
+    startingSpotsCapacity,
+    warning,
+  ]);
 
   const onStartNormalSession = useCallback(() => {
     if (editingRoute) return warning("Commit or cancel the current route first.");
@@ -683,10 +893,94 @@ export const useGridModel = () => {
     }));
   }, [sessionState.isActive, warning]);
 
+  const poolSpaceRemaining = useMemo(
+    () => Math.max(0, startingSpotsCapacity - playerSkaterPool.length),
+    [playerSkaterPool.length, startingSpotsCapacity]
+  );
+
+  const canRecruitInSession = useMemo(
+    () =>
+      gridMode === "session" &&
+      sessionState.sessionType === "beginner" &&
+      !sessionState.isActive &&
+      !sessionState.isTickRunning &&
+      sessionState.currentTick >= sessionState.maxTicks &&
+      poolSpaceRemaining > 0,
+    [
+      gridMode,
+      poolSpaceRemaining,
+      sessionState.currentTick,
+      sessionState.isActive,
+      sessionState.isTickRunning,
+      sessionState.maxTicks,
+      sessionState.sessionType,
+    ]
+  );
+
+  const canEndSession = useMemo(
+    () =>
+      gridMode === "session" &&
+      !sessionState.isActive &&
+      !sessionState.isTickRunning &&
+      sessionState.currentTick >= sessionState.maxTicks,
+    [gridMode, sessionState.currentTick, sessionState.isActive, sessionState.isTickRunning, sessionState.maxTicks]
+  );
+
+  const onRecruitBeginnerSkater = useCallback(
+    (skaterId) => {
+      if (sessionState.sessionType !== "beginner") return;
+      if (poolSpaceRemaining < 1) {
+        warning("No room left in your pool.");
+        return;
+      }
+      if (sessionState.recruitedSkaterIds.includes(skaterId)) return;
+
+      const skater = sessionState.beginnerCandidates.find((candidate) => candidate.id === skaterId);
+      if (!skater) return;
+
+      setPlayerSkaterPool((prev) => {
+        if (prev.some((item) => item.id === skaterId)) return prev;
+        return [...prev, skater];
+      });
+
+      setSessionState((prev) => ({
+        ...prev,
+        recruitedSkaterIds: [...prev.recruitedSkaterIds, skaterId],
+      }));
+
+      success(`${skater.name} added to your skater pool.`);
+    },
+    [poolSpaceRemaining, sessionState.beginnerCandidates, sessionState.recruitedSkaterIds, sessionState.sessionType, success, warning]
+  );
+
+  const onEndSession = useCallback(() => {
+    if (!canEndSession) return warning("Session can only be ended after all ticks are complete.");
+    setGridMode("edit");
+    setEditMode("build");
+    setSessionState({
+      isActive: false,
+      isTickRunning: false,
+      currentTick: 0,
+      maxTicks: SESSION_TICKS,
+      sessionType: "normal",
+      skaters: [],
+      beginnerCandidates: [],
+      assignments: {},
+      skaterPositions: {},
+      trickAttempts: [],
+      currentTickTrickAttempts: [],
+      recruitedSkaterIds: [],
+      clock: SESSION_CLOCK_DEFAULT,
+    });
+    success("Session ended.");
+  }, [canEndSession, success, warning]);
+
   const onAdvanceTick = useCallback(async () => {
     if (gridMode !== "session" || !sessionState.isActive || sessionState.isTickRunning) return;
     const nextTick = sessionState.currentTick + 1;
     if (nextTick > SESSION_TICKS) return;
+
+    const tickStartMs = Date.now();
 
     const activeSkaters = sessionState.skaters.filter(
       (skater) => nextTick >= skater.arrivalTick && nextTick < skater.arrivalTick + skater.energy
@@ -718,13 +1012,61 @@ export const useGridModel = () => {
       currentTick: nextTick,
       assignments,
       skaterPositions: startPositions,
+      clock: {
+        totalTicks: SESSION_TICKS,
+        currentTick: nextTick,
+        ticksRemaining: Math.max(0, SESSION_TICKS - nextTick),
+      },
     }));
 
     const runOrder = shuffleItems(activeSkaters).filter((skater) => assignments[skater.id]);
+    const tickAttemptLog = [];
     for (const skater of runOrder) {
       const target = startingTargetById.get(assignments[skater.id]);
       if (!target) continue;
+      const priorAttemptsForSkater = [...sessionState.trickAttempts, ...tickAttemptLog].filter(
+        (entry) => entry.skaterId === skater.id
+      );
+      const attempts = buildTrickAttemptsForRun({
+        skater,
+        target,
+        allSkateparkPieces: allSkateparkRunPieces,
+        priorSessionAttempts: priorAttemptsForSkater,
+      });
+      attempts.forEach((attempt) => {
+        const priorAttempts = [...sessionState.trickAttempts, ...tickAttemptLog];
+        const isRepeatInSession = priorAttempts.some(
+          (entry) =>
+            entry.skaterId === skater.id &&
+            entry.trickName === attempt.trickName &&
+            entry.pieceName === attempt.pieceName &&
+            entry.pieceCoordinate === attempt.pieceCoordinate
+        );
+
+        tickAttemptLog.push({
+          id: `${nextTick}-${skater.id}-${Math.random().toString(16).slice(2, 8)}`,
+          tick: nextTick,
+          skaterId: skater.id,
+          skaterName: skater.name,
+          skaterInitials: skater.initials,
+          skaterColor: skater.color,
+          sport: skater.sport,
+          targetLabel: target.label,
+          type: attempt.type,
+          trickName: attempt.trickName,
+          coreName: attempt.coreName,
+          variantName: attempt.variantName,
+          pieceName: attempt.pieceName,
+          pieceCoordinate: attempt.pieceCoordinate,
+          isRepeatInSession,
+        });
+      });
       await animateSkaterOnTarget(skater.id, target);
+    }
+
+    const elapsedMs = Date.now() - tickStartMs;
+    if (elapsedMs < MIN_TICK_DURATION_MS) {
+      await sleep(MIN_TICK_DURATION_MS - elapsedMs);
     }
 
     const sessionEnded = nextTick >= SESSION_TICKS;
@@ -734,35 +1076,34 @@ export const useGridModel = () => {
       isActive: sessionEnded ? false : prev.isActive,
       assignments: sessionEnded ? {} : prev.assignments,
       skaterPositions: sessionEnded ? {} : prev.skaterPositions,
+      trickAttempts: [...prev.trickAttempts, ...tickAttemptLog],
+      currentTickTrickAttempts: tickAttemptLog,
     }));
-
-    if (sessionEnded && sessionState.sessionType === "beginner" && sessionState.beginnerCandidates.length > 0) {
-      openModal({
-        modalTitle: "Recruit A Beginner",
-        modalContent: (
-          <BeginnerRecruitModal
-            skaters={sessionState.beginnerCandidates}
-            onRecruit={(skater) => {
-              setPlayerSkaterPool((prev) => [...prev, skater]);
-              closeModal();
-              success(`${skater.name} added to your skater pool.`);
-            }}
-          />
-        ),
-        buttons: MODAL_BUTTONS.NONE,
-      });
-    }
 
     if (sessionEnded) success("Session ended after 20 ticks.");
   }, [
     animateSkaterOnTarget,
-    closeModal,
     gridMode,
-    openModal,
     sessionState,
+    allSkateparkRunPieces,
     startingTargetById,
     startingTargets,
     success,
+  ]);
+
+  useEffect(() => {
+    if (gridMode !== "session") return;
+    if (!sessionState.isActive || sessionState.isTickRunning) return;
+    if (sessionState.currentTick >= sessionState.maxTicks) return;
+
+    onAdvanceTick();
+  }, [
+    gridMode,
+    onAdvanceTick,
+    sessionState.currentTick,
+    sessionState.isActive,
+    sessionState.isTickRunning,
+    sessionState.maxTicks,
   ]);
 
   const sessionTimeline = useMemo(() => {
@@ -802,11 +1143,17 @@ export const useGridModel = () => {
       });
   }, [sessionState.assignments, sessionState.currentTick, sessionState.skaters, startingTargetById]);
 
+  const sessionAttemptLog = useMemo(() => {
+    return [...sessionState.trickAttempts].sort((a, b) => a.tick - b.tick);
+  }, [sessionState.trickAttempts]);
+
   return {
     gridSize,
     gridMode,
     editMode,
     editingRoute,
+    canPlaceMiddleBySpeed,
+    getPieceDragInvalidReason,
     skatepark,
     occupancy,
     skaterMarkers,
@@ -815,21 +1162,25 @@ export const useGridModel = () => {
     sessionState,
     sessionTimeline,
     sessionRunDisplay,
+    sessionAttemptLog,
     playerSkaterPool,
-    beginnerSport,
     canStartBeginnerSession,
     canStartNormalSession,
+    canEndSession,
+    canRecruitInSession,
+    poolSpaceRemaining,
     startingSpotsCapacity,
     onTileDrop,
     onTileClick,
     onCancelRoute,
+    onRemoveLastRoutePiece,
     onCommitRoute,
     onToggleDeleteMode,
     onGridSizeChange,
     onStartBeginnerSession,
     onStartNormalSession,
+    onRecruitBeginnerSkater,
+    onEndSession,
     onGoToEditMode,
-    onAdvanceTick,
-    onBeginnerSportChange: setBeginnerSport,
   };
 };

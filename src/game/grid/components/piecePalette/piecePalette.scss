@@ -1,6 +1,8 @@
 @use "../../../../assets/scss/ui/import" as *;
 
 .piecePalette {
+  width: 600px;
+  max-width: 100%;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid rgba(0, 0, 0, 0.2);
   border-radius: 12px;
@@ -21,6 +23,34 @@
     margin-top: 0.75rem;
     font-size: 0.95rem;
   }
+}
+
+.piecePalette__tabs {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.45rem;
+}
+
+.piecePalette__tab {
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 999px;
+  background: #ffffff;
+  color: $darkText;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.piecePalette__tab--active {
+  background: $primaryBackground;
+  color: $primaryForeground;
+}
+
+.piecePalette__tab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .piecePalette__list {
@@ -56,8 +86,22 @@
   font-weight: 700;
 }
 
+.pieceCard--invalid {
+  background: #ef4444 !important;
+  border-color: #991b1b;
+}
+
 .pieceItem__meta {
   font-size: 0.6rem;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.pieceItem__error {
+  max-width: 120px;
+  text-align: center;
+  font-size: 0.58rem;
+  line-height: 1.2;
+  color: #991b1b;
+  font-weight: 700;
 }

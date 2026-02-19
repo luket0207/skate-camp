@@ -16,6 +16,13 @@ const shuffleItems = (items) => {
   return next;
 };
 
+const serializeTypeState = (trickLibrary, type) =>
+  trickLibrary
+    .filter((entry) => entry.type === type)
+    .map((entry) => entry.id)
+    .sort()
+    .join("|");
+
 const getBranchState = (trickLibrary, key) =>
   trickLibrary.find((entry) => entry.branchKey === key && (entry.nodeType === "variant" || entry.nodeType === "upgrade"));
 
@@ -165,30 +172,86 @@ const getGenerationActionsForType = (sport, type, trickLibrary, remainingPoints)
   return cores;
 };
 
+const getMaxSpendForBudget = (sport, type, trickLibrary, budget, memo) => {
+  if (budget <= 0) return 0;
+
+  const key = `${type}::${budget}::${serializeTypeState(trickLibrary, type)}`;
+  if (memo.has(key)) return memo.get(key);
+
+  const actions = getGenerationActionsForType(sport, type, trickLibrary, budget);
+  if (actions.length < 1) {
+    memo.set(key, 0);
+    return 0;
+  }
+
+  let best = 0;
+  actions.forEach((action) => {
+    const result = purchaseNode({
+      trickLibrary,
+      type,
+      coreNode: action.coreNode,
+      variantNode: action.variantNode,
+      upgradeNode: action.upgradeNode,
+      upgradeIndex: action.upgradeIndex,
+    });
+
+    if (!result.success || result.spent < 1) return;
+    const next = result.spent + getMaxSpendForBudget(sport, type, result.trickLibrary, budget - result.spent, memo);
+    if (next > best) best = next;
+  });
+
+  memo.set(key, best);
+  return best;
+};
+
 export const buildGeneratedTrickLibrary = (skater) => {
   const ratings = getTypeRatingsForSkater(skater);
   let trickLibrary = [];
 
   Object.entries(ratings).forEach(([type, budgetRaw]) => {
     let budget = Number(budgetRaw || 0);
+    const memo = new Map();
 
     while (budget > 0) {
       const actions = getGenerationActionsForType(skater.sport, type, trickLibrary, budget);
       if (actions.length < 1) break;
 
-      const chosenAction = shuffleItems(actions)[0];
-      const result = purchaseNode({
-        trickLibrary,
-        type,
-        coreNode: chosenAction.coreNode,
-        variantNode: chosenAction.variantNode,
-        upgradeNode: chosenAction.upgradeNode,
-        upgradeIndex: chosenAction.upgradeIndex,
+      let chosenResult = null;
+      let chosenAction = null;
+      let bestTotalSpend = -1;
+
+      shuffleItems(actions).forEach((action) => {
+        const result = purchaseNode({
+          trickLibrary,
+          type,
+          coreNode: action.coreNode,
+          variantNode: action.variantNode,
+          upgradeNode: action.upgradeNode,
+          upgradeIndex: action.upgradeIndex,
+        });
+
+        if (!result.success || result.spent < 1) return;
+
+        const futureSpend = getMaxSpendForBudget(
+          skater.sport,
+          type,
+          result.trickLibrary,
+          budget - result.spent,
+          memo
+        );
+        const totalSpend = result.spent + futureSpend;
+
+        if (totalSpend > bestTotalSpend) {
+          bestTotalSpend = totalSpend;
+          chosenResult = result;
+          chosenAction = action;
+        }
       });
 
-      if (!result.success || result.spent < 1) break;
-      trickLibrary = result.trickLibrary;
-      budget -= result.spent;
+      if (!chosenAction || !chosenResult) break;
+
+      trickLibrary = chosenResult.trickLibrary;
+      budget -= chosenResult.spent;
     }
   });
 

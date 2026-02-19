@@ -13,65 +13,73 @@ const Grid = () => {
     <div className="gridScene">
       <h1>Skatepark Builder</h1>
 
-      <div className="gridScene__topRow">
-        <div className="gridScene__boardWrap">
-          <Board
-            gridSize={model.gridSize}
-            occupancy={model.occupancy}
-            skaterMarkers={model.skaterMarkers}
-            onTileDrop={model.onTileDrop}
-            onTileClick={model.onTileClick}
+      <div className="gridScene__layout">
+        <div className="gridScene__leftCol">
+          <div className="gridScene__boardWrap">
+            <Board
+              gridSize={model.gridSize}
+              occupancy={model.occupancy}
+              skaterMarkers={model.skaterMarkers}
+              editingRoute={model.editingRoute}
+              onCancelRoute={model.onCancelRoute}
+              onCommitRoute={model.onCommitRoute}
+              onRemoveLastRoutePiece={model.onRemoveLastRoutePiece}
+              onTileDrop={model.onTileDrop}
+              onTileClick={model.onTileClick}
+            />
+          </div>
+
+          {model.gridMode === "edit" && (
+            <div className="gridScene__paletteWrap">
+          <PiecePalette
+            standalonePieces={model.standalonePieces}
+            routePieces={model.routePieces}
+            editingRoute={model.editingRoute}
+            canPlaceMiddleBySpeed={model.canPlaceMiddleBySpeed}
+            getPieceDragInvalidReason={model.getPieceDragInvalidReason}
+            routeModeActive={Boolean(model.editingRoute)}
           />
+            </div>
+          )}
+
+          {model.gridMode === "session" && (
+            <div className="gridScene__paletteWrap">
+              <SessionPanel
+                sessionState={model.sessionState}
+                timeline={model.sessionTimeline}
+                runDisplay={model.sessionRunDisplay}
+                attemptLog={model.sessionAttemptLog}
+                canRecruitSkaters={model.canRecruitInSession}
+                poolSpaceRemaining={model.poolSpaceRemaining}
+                onRecruitSkater={model.onRecruitBeginnerSkater}
+              />
+            </div>
+          )}
+
+          <div className="gridScene__debug">
+            <h3>Debug: gameContext.skatepark</h3>
+            <pre>{JSON.stringify(model.skatepark, null, 2)}</pre>
+          </div>
         </div>
 
-        <div className="gridScene__controlsWrap">
+        <div className="gridScene__rightCol">
           <Controls
             gridSize={model.gridSize}
             gridMode={model.gridMode}
             editMode={model.editMode}
-            editingRoute={model.editingRoute}
             sessionState={model.sessionState}
-            beginnerSport={model.beginnerSport}
             canStartBeginnerSession={model.canStartBeginnerSession}
             canStartNormalSession={model.canStartNormalSession}
+            canEndSession={model.canEndSession}
             playerSkaterPoolCount={model.playerSkaterPool.length}
             startingSpotsCapacity={model.startingSpotsCapacity}
             onGridSizeChange={model.onGridSizeChange}
             onToggleDeleteMode={model.onToggleDeleteMode}
-            onCancelRoute={model.onCancelRoute}
-            onCommitRoute={model.onCommitRoute}
             onStartBeginnerSession={model.onStartBeginnerSession}
             onStartNormalSession={model.onStartNormalSession}
-            onGoToEditMode={model.onGoToEditMode}
-            onAdvanceTick={model.onAdvanceTick}
-            onBeginnerSportChange={model.onBeginnerSportChange}
+            onEndSession={model.onEndSession}
           />
         </div>
-      </div>
-
-      {model.gridMode === "edit" && (
-        <div className="gridScene__paletteWrap">
-          <PiecePalette
-            standalonePieces={model.standalonePieces}
-            routePieces={model.routePieces}
-            routeModeActive={Boolean(model.editingRoute)}
-          />
-        </div>
-      )}
-
-      {model.gridMode === "session" && (
-        <div className="gridScene__paletteWrap">
-          <SessionPanel
-            sessionState={model.sessionState}
-            timeline={model.sessionTimeline}
-            runDisplay={model.sessionRunDisplay}
-          />
-        </div>
-      )}
-
-      <div className="gridScene__debug">
-        <h3>Debug: gameContext.skatepark</h3>
-        <pre>{JSON.stringify(model.skatepark, null, 2)}</pre>
       </div>
     </div>
   );

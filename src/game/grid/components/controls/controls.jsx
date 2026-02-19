@@ -1,29 +1,23 @@
 import React from "react";
 import Button, { BUTTON_VARIANT } from "../../../../engine/ui/button/button";
 import { MAX_GRID_SIZE, MIN_GRID_SIZE } from "../hooks/gridUtils";
-import { SKATER_SPORT } from "../../../skaters/skaterUtils";
 import "./controls.scss";
 
 const Controls = ({
   gridSize,
   gridMode,
   editMode,
-  editingRoute,
   sessionState,
-  beginnerSport,
   canStartBeginnerSession,
   canStartNormalSession,
+  canEndSession,
   playerSkaterPoolCount,
   startingSpotsCapacity,
   onGridSizeChange,
   onToggleDeleteMode,
-  onCancelRoute,
-  onCommitRoute,
   onStartBeginnerSession,
   onStartNormalSession,
-  onGoToEditMode,
-  onAdvanceTick,
-  onBeginnerSportChange,
+  onEndSession,
 }) => {
   const sizes = [];
   for (let value = MIN_GRID_SIZE; value <= MAX_GRID_SIZE; value++) {
@@ -32,51 +26,42 @@ const Controls = ({
 
   return (
     <div className="gridControls">
-      <div className="gridControls__modeButtons">
-        <div className="gridControls__group">
-          <label htmlFor="beginner-sport-select">Beginner Sport</label>
-          <select
-            id="beginner-sport-select"
-            value={beginnerSport}
-            onChange={(event) => onBeginnerSportChange(event.target.value)}
-            disabled={sessionState.isActive}
-          >
-            <option value={SKATER_SPORT.SKATEBOARDER}>Skateboarder</option>
-            <option value={SKATER_SPORT.ROLLERBLADER}>Rollerblader</option>
-          </select>
+      <div className="gridControls__clock">
+        <div className="gridControls__clockLabel">Session Clock</div>
+        <div className="gridControls__clockValue">{sessionState.clock?.ticksRemaining ?? sessionState.maxTicks}</div>
+        <div className="gridControls__clockSubtext">
+          Tick {sessionState.clock?.currentTick ?? sessionState.currentTick}/{sessionState.clock?.totalTicks ?? sessionState.maxTicks}
         </div>
+      </div>
 
-        <Button
-          variant={BUTTON_VARIANT.PRIMARY}
-          onClick={onStartBeginnerSession}
-          disabled={sessionState.isTickRunning || sessionState.isActive || !canStartBeginnerSession}
-        >
-          Start Beginner Session
-        </Button>
+      <div className="gridControls__modeButtons">
+        {gridMode === "session" ? (
+          <Button variant={BUTTON_VARIANT.PRIMARY} onClick={onEndSession} disabled={!canEndSession}>
+            End Session
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant={BUTTON_VARIANT.PRIMARY}
+              onClick={onStartBeginnerSession}
+              disabled={sessionState.isTickRunning || sessionState.isActive || !canStartBeginnerSession}
+            >
+              Start Beginner Session
+            </Button>
 
-        <Button
-          variant={BUTTON_VARIANT.SECONDARY}
-          onClick={onStartNormalSession}
-          disabled={sessionState.isTickRunning || sessionState.isActive || !canStartNormalSession}
-        >
-          Start Normal Session
-        </Button>
+            <Button
+              variant={BUTTON_VARIANT.SECONDARY}
+              onClick={onStartNormalSession}
+              disabled={sessionState.isTickRunning || sessionState.isActive || !canStartNormalSession}
+            >
+              Start Normal Session
+            </Button>
 
-        <Button variant={BUTTON_VARIANT.SECONDARY} onClick={onGoToEditMode} disabled={sessionState.isActive}>
-          Edit Skatepark
-        </Button>
-
-        <Button
-          variant={BUTTON_VARIANT.TERTIARY}
-          onClick={onAdvanceTick}
-          disabled={gridMode !== "session" || !sessionState.isActive || sessionState.isTickRunning}
-        >
-          Advance Tick
-        </Button>
-
-        <Button variant={BUTTON_VARIANT.TERTIARY} to="/skaters">
-          View Skaters
-        </Button>
+            <Button variant={BUTTON_VARIANT.TERTIARY} to="/skaters">
+              View Skaters
+            </Button>
+          </>
+        )}
       </div>
 
       <div className="gridControls__sessionInfo">
@@ -109,28 +94,6 @@ const Controls = ({
             >
               {editMode === "delete" ? "Stop Deleting" : "Delete Pieces"}
             </Button>
-          </div>
-
-          <div className="gridControls__routeBlock">
-            {editingRoute ? (
-              <>
-                <span className="gridControls__routeStatus">
-                  Route Mode: {editingRoute.complete ? "Complete" : "Incomplete"}
-                </span>
-
-                <Button variant={BUTTON_VARIANT.SECONDARY} onClick={onCancelRoute}>
-                  Cancel Route
-                </Button>
-
-                {editingRoute.complete && (
-                  <Button variant={BUTTON_VARIANT.PRIMARY} onClick={onCommitRoute}>
-                    Commit Route
-                  </Button>
-                )}
-              </>
-            ) : (
-              <span className="gridControls__routeStatus">Route Mode: Inactive</span>
-            )}
           </div>
         </div>
       )}

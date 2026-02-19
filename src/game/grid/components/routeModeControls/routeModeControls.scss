@@ -1,0 +1,27 @@
+@use "../../../../assets/scss/ui/import" as *;
+
+.routeModeControls {
+  position: absolute;
+  z-index: 8;
+  transform: translate(6px, calc(-100% - 6px));
+  display: grid;
+  gap: 0.3rem;
+  min-width: 138px;
+  background: rgba(0, 0, 0, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 8px;
+  padding: 0.4rem;
+
+  .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.72rem;
+  }
+}
+
+.routeModeControls__status {
+  color: $lightText;
+  font-size: 0.72rem;
+  font-weight: 700;
+}

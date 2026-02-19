@@ -19,12 +19,22 @@ const weightedLowInt = (min, max, power = 1.75) => {
   return min + Math.floor(normalized * (max - min + 1));
 };
 
-const makeSkillFromPotential = (potential, maxBase = 20) => {
-  const raw = randInt(1, maxBase);
-  const boostWindow = Math.floor(((potential - 20) / 80) * Math.max(1, Math.floor(maxBase / 2)));
-  const bonus = boostWindow > 0 ? randInt(0, boostWindow) : 0;
-  const value = Math.min(maxBase, raw + bonus);
-  return Math.max(1, Math.min(value, Math.max(1, potential - 1)));
+const makeBeginnerTypeRatingFromPotential = (potential) => {
+  if (potential <= 20) {
+    return randInt(1, 4);
+  }
+
+  if (potential <= 50) {
+    const roll = Math.random();
+    return roll < 0.4 ? randInt(1, 2) : randInt(3, 5);
+  }
+
+  if (potential <= 80) {
+    return randInt(3, 6);
+  }
+
+  const roll = Math.random();
+  return roll < 0.6 ? randInt(3, 6) : randInt(6, 8);
 };
 
 const computeSkillLevel = (stats) => {
@@ -50,8 +60,8 @@ export const generateBeginnerSkater = (sport) => {
   const bigAirPotential = randInt(20, 100);
 
   const commonStats = {
-    stall: makeSkillFromPotential(stallPotential, 6),
-    grind: makeSkillFromPotential(grindPotential, 6),
+    stall: makeBeginnerTypeRatingFromPotential(stallPotential),
+    grind: makeBeginnerTypeRatingFromPotential(grindPotential),
     stallPotential,
     grindPotential,
     bigAirPotential,
@@ -61,16 +71,16 @@ export const generateBeginnerSkater = (sport) => {
     safeSport === SKATER_SPORT.ROLLERBLADER
       ? {
           ...commonStats,
-          tech: makeSkillFromPotential(specialPotentialA, 6),
-          spin: makeSkillFromPotential(specialPotentialB, 6),
+          tech: makeBeginnerTypeRatingFromPotential(specialPotentialA),
+          spin: makeBeginnerTypeRatingFromPotential(specialPotentialB),
           bigAir: 0,
           techPotential: specialPotentialA,
           spinPotential: specialPotentialB,
         }
       : {
           ...commonStats,
-          flip: makeSkillFromPotential(specialPotentialA, 6),
-          grab: makeSkillFromPotential(specialPotentialB, 6),
+          flip: makeBeginnerTypeRatingFromPotential(specialPotentialA),
+          grab: makeBeginnerTypeRatingFromPotential(specialPotentialB),
           bigAir: 0,
           flipPotential: specialPotentialA,
           grabPotential: specialPotentialB,

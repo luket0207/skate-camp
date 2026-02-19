@@ -1,8 +1,19 @@
 import React from "react";
 import Tile from "../tile/tile";
+import RouteModeControls from "../routeModeControls/routeModeControls";
 import "./board.scss";
 
-const Board = ({ gridSize, occupancy, skaterMarkers, onTileDrop, onTileClick }) => {
+const Board = ({
+  gridSize,
+  occupancy,
+  skaterMarkers,
+  editingRoute,
+  onCancelRoute,
+  onCommitRoute,
+  onRemoveLastRoutePiece,
+  onTileDrop,
+  onTileClick,
+}) => {
   const tiles = [];
 
   for (let row = 0; row < gridSize; row++) {
@@ -32,6 +43,18 @@ const Board = ({ gridSize, occupancy, skaterMarkers, onTileDrop, onTileClick }) 
           />
         );
       })}
+
+      {editingRoute?.pieces?.[0] && (
+        <RouteModeControls
+          startPiece={editingRoute.pieces[0]}
+          complete={Boolean(editingRoute.complete)}
+          routeLength={editingRoute.pieces.length}
+          currentSpeed={editingRoute.currentSpeed || 0}
+          onCancelRoute={onCancelRoute}
+          onRemoveLastRoutePiece={onRemoveLastRoutePiece}
+          onCommitRoute={onCommitRoute}
+        />
+      )}
     </div>
   );
 };

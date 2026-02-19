@@ -8,6 +8,7 @@
   color: $darkText;
   display: grid;
   gap: 0.9rem;
+  width: 600px;
 }
 
 .sessionPanel__section {
@@ -26,7 +27,8 @@
 }
 
 .sessionPanel__timelineItem,
-.sessionPanel__runItem {
+.sessionPanel__runItem,
+.sessionPanel__attemptItem {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 0.5rem;
@@ -39,6 +41,52 @@
 
 .sessionPanel__runItem {
   grid-template-columns: auto 120px 1fr auto;
+}
+
+.sessionPanel__attemptItem {
+  grid-template-columns: auto 1fr 1fr auto;
+}
+
+.sessionPanel__attemptTick {
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+
+.sessionPanel__attemptMeta {
+  opacity: 0.85;
+}
+
+.sessionPanel__attemptGroup {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.4rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.sessionPanel__attemptGroupHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+
+  .btn.sessionPanel__recruitButton {
+    margin-left: auto;
+    width: auto;
+    min-width: 90px;
+    justify-content: center;
+  }
+}
+
+.sessionPanel__repeatFlag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #991b1b;
+  background: rgba(220, 38, 38, 0.15);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
 }
 
 .sessionPanel__badge {
@@ -67,7 +115,8 @@
 }
 
 @media (max-width: 900px) {
-  .sessionPanel__runItem {
+  .sessionPanel__runItem,
+  .sessionPanel__attemptItem {
     grid-template-columns: auto 1fr;
   }
 }

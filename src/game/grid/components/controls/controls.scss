@@ -20,6 +20,34 @@
   gap: 0.45rem;
 }
 
+.gridControls__clock {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  padding: 0.7rem 0.5rem;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.gridControls__clockLabel {
+  font-size: 0.72rem;
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gridControls__clockValue {
+  font-size: 1.8rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.gridControls__clockSubtext {
+  font-size: 0.72rem;
+  opacity: 0.9;
+}
+
 .gridControls__sessionInfo {
   display: grid;
   gap: 0.25rem;
@@ -51,18 +79,4 @@
     background: $secondaryBackground;
     color: $secondaryForeground;
   }
-}
-
-.gridControls__routeBlock {
-  min-height: 132px;
-  display: grid;
-  align-content: start;
-  gap: 0.45rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
-  padding-top: 0.65rem;
-}
-
-.gridControls__routeStatus {
-  font-size: 0.85rem;
-  font-weight: 700;
 }
