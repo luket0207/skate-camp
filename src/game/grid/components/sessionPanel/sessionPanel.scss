@@ -44,7 +44,7 @@
 }
 
 .sessionPanel__attemptItem {
-  grid-template-columns: auto 1fr 1fr auto;
+  grid-template-columns: auto 1fr 1fr auto auto auto auto auto;
 }
 
 .sessionPanel__attemptTick {
@@ -54,6 +54,46 @@
 
 .sessionPanel__attemptMeta {
   opacity: 0.85;
+}
+
+.sessionPanel__resultTag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  text-align: center;
+}
+
+.sessionPanel__resultTag--landed {
+  color: #14532d;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(22, 163, 74, 0.35);
+}
+
+.sessionPanel__resultTag--bailed {
+  color: #7f1d1d;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(185, 28, 28, 0.35);
+}
+
+.sessionPanel__retryFlag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+}
+
+.sessionPanel__scoreTag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #1f2937;
+  background: rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 999px;
+  padding: 0.1rem 0.42rem;
 }
 
 .sessionPanel__attemptGroup {

@@ -60,6 +60,66 @@ const getRouteSpeedAfterPieces = (pieces) => {
     .reduce((sum, piece) => sum + Math.max(0, toNumeric(piece.speedCost) || 0), 0);
   return Math.max(0, startDropSpeed - middleCost);
 };
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const getDifficultyPercent = (pieceDifficulty, coreLevel, variantLevel) =>
+  Math.round((((pieceDifficulty + (coreLevel * 2) + variantLevel) * 10) / 260) * 100);
+
+const getBaseSuccess = (trickTypeRating, attemptNumber) => {
+  const rating = clamp(trickTypeRating, 1, 100) / 100;
+  const attempt = clamp(attemptNumber, 1, 3);
+
+  // Lower baseline and steeper skill curve to reduce over-landing.
+  const skillComponent = 35 * Math.pow(rating, 0.75);
+  const attemptBonus = (attempt - 1) * 8;
+  const rng = randomIntInclusive(-6, 6);
+
+  return clamp(Math.round(skillComponent + attemptBonus + rng), 1, 85);
+};
+
+const applyInstructorBoost = (baseSuccess, trickTypeRating, instructorTrickRating) => {
+  const cappedBase = clamp(baseSuccess, 1, 100);
+  const itr = clamp(instructorTrickRating || 0, 0, 10);
+  if (itr <= 0) return cappedBase;
+  const lowSkillFactor = Math.pow((100 - clamp(trickTypeRating, 1, 100)) / 100, 1.5);
+  const maxBoost = Math.max(0, 90 - cappedBase);
+  const boost = Math.round(maxBoost * lowSkillFactor * (itr / 10) * 1.2);
+  return clamp(cappedBase + boost, 1, 90);
+};
+
+const getResultBand = (score) => {
+  if (score > 30) return { landChance: 98, minControl: 80, maxControl: 100 };
+  if (score > 20) return { landChance: 85, minControl: 60, maxControl: 90 };
+  if (score > 10) return { landChance: 70, minControl: 40, maxControl: 80 };
+  if (score > 0) return { landChance: 60, minControl: 30, maxControl: 70 };
+  if (score > -10) return { landChance: 30, minControl: 20, maxControl: 30 };
+  if (score > -20) return { landChance: 5, minControl: 1, maxControl: 20 };
+  return { landChance: 0, minControl: 0, maxControl: 0 };
+};
+
+const getEffectiveTrickTypeRating = (skater, type) => {
+  const raw = Number(skater?.[type] || 0);
+  if (!Number.isFinite(raw)) return 1;
+  const safe = Math.max(1, raw);
+  if (safe <= 10) return Math.min(100, safe * 10);
+  return Math.min(100, safe);
+};
+
+const getTrickSteezeScore = ({ skaterSteezeRating, pieceDifficulty, control }) => {
+  const sr = clamp(Number(skaterSteezeRating) || 1, 1, 10) / 10;
+  const pd = clamp(Number(pieceDifficulty) || 1, 1, 10) / 10;
+  const c = clamp(Number(control) || 0, 0, 100) / 100;
+
+  const styleBase = ((sr * 3) + pd) / 4;
+  const controlMultiplier = Math.pow(c, 1.2);
+  const raw = styleBase * controlMultiplier * 100;
+
+  const variancePercent = randomIntInclusive(0, 10) / 100;
+  const varianceDirection = Math.random() < 0.5 ? -1 : 1;
+  const withVariance = raw + (raw * variancePercent * varianceDirection);
+
+  return clamp(Math.round(withVariance), 1, 100);
+};
 
 const parseCoordinate = (coordinate) => {
   if (typeof coordinate !== "string" || coordinate.length < 2) return null;
@@ -174,6 +234,8 @@ export const useGridModel = () => {
     trickAttempts: [],
     currentTickTrickAttempts: [],
     recruitedSkaterIds: [],
+    retryQueue: {},
+    instructorTrickRating: 0,
     clock: SESSION_CLOCK_DEFAULT,
   });
 
@@ -302,23 +364,23 @@ export const useGridModel = () => {
     });
 
     committedRoutes.forEach((route) => {
-      route.pieces.forEach((piece, pieceIndex) => {
-        if (!hasRouteType(piece, "Start")) return;
-        targets.push({
-          targetId: `route-target-${route.routeId}-${pieceIndex}`,
-          type: "Route",
-          sourceId: route.routeId,
-          label: `${route.name} (${piece.name} ${piece.coordinates})`,
-          capacity: piece.startingSpots || 0,
-          startCell: { row: piece.row, col: piece.col },
-          runTiles: route.pieces.slice(pieceIndex).map((routePiece) => ({ row: routePiece.row, col: routePiece.col })),
-          runPieces: route.pieces.slice(pieceIndex).map((routePiece) => ({
-            name: routePiece.name,
-            coordinate: routePiece.coordinates,
-            trickOpportunities: routePiece.trickOpportunities || 0,
-            difficulty: routePiece.difficulty || null,
-          })),
-        });
+      const startPiece = route.pieces[0];
+      if (!startPiece || !hasRouteType(startPiece, "Start")) return;
+
+      targets.push({
+        targetId: `route-target-${route.routeId}-0`,
+        type: "Route",
+        sourceId: route.routeId,
+        label: `${route.name} (${startPiece.name} ${startPiece.coordinates})`,
+        capacity: startPiece.startingSpots || 0,
+        startCell: { row: startPiece.row, col: startPiece.col },
+        runTiles: route.pieces.map((routePiece) => ({ row: routePiece.row, col: routePiece.col })),
+        runPieces: route.pieces.map((routePiece) => ({
+          name: routePiece.name,
+          coordinate: routePiece.coordinates,
+          trickOpportunities: routePiece.trickOpportunities || 0,
+          difficulty: routePiece.difficulty || null,
+        })),
       });
     });
 
@@ -827,6 +889,8 @@ export const useGridModel = () => {
         trickAttempts: [],
         currentTickTrickAttempts: [],
         recruitedSkaterIds: [],
+        retryQueue: {},
+        instructorTrickRating: 0,
         clock: SESSION_CLOCK_DEFAULT,
       });
 
@@ -890,6 +954,7 @@ export const useGridModel = () => {
       isTickRunning: false,
       assignments: {},
       skaterPositions: {},
+      retryQueue: {},
     }));
   }, [sessionState.isActive, warning]);
 
@@ -970,6 +1035,8 @@ export const useGridModel = () => {
       trickAttempts: [],
       currentTickTrickAttempts: [],
       recruitedSkaterIds: [],
+      retryQueue: {},
+      instructorTrickRating: 0,
       clock: SESSION_CLOCK_DEFAULT,
     });
     success("Session ended.");
@@ -986,17 +1053,62 @@ export const useGridModel = () => {
       (skater) => nextTick >= skater.arrivalTick && nextTick < skater.arrivalTick + skater.energy
     );
 
-    const availableSlots = [];
-    startingTargets.forEach((target) => {
-      for (let i = 0; i < target.capacity; i++) availableSlots.push(target.targetId);
+    const assignments = {};
+    const retryQueue = { ...(sessionState.retryQueue || {}) };
+    const retrySkaters = shuffleItems(activeSkaters).filter((skater) => retryQueue[skater.id]);
+    const plannedAttemptsBySkater = {};
+    const tickAttemptLog = [];
+    const reservedSlotsByTarget = {};
+
+    retrySkaters.forEach((skater) => {
+      const retryState = retryQueue[skater.id];
+      const retryTarget = startingTargetById.get(retryState?.targetId);
+      if (!retryTarget) return;
+      assignments[skater.id] = retryState.targetId;
+      reservedSlotsByTarget[retryState.targetId] = (reservedSlotsByTarget[retryState.targetId] || 0) + 1;
     });
 
-    const assignments = {};
-    for (const skater of shuffleItems(activeSkaters)) {
+    const availableSlots = [];
+    startingTargets.forEach((target) => {
+      const reserved = reservedSlotsByTarget[target.targetId] || 0;
+      const remaining = Math.max(0, target.capacity - reserved);
+      for (let i = 0; i < remaining; i++) availableSlots.push(target.targetId);
+    });
+
+    const nonRetrySkaters = shuffleItems(activeSkaters).filter((skater) => !assignments[skater.id]);
+    for (const skater of nonRetrySkaters) {
       if (availableSlots.length < 1) break;
-      const slotIndex = randomIntInclusive(0, availableSlots.length - 1);
-      const [targetId] = availableSlots.splice(slotIndex, 1);
+      const priorResultsForSkater = [...sessionState.trickAttempts, ...tickAttemptLog].filter(
+        (entry) => entry.skaterId === skater.id
+      );
+
+      const uniqueAvailableTargetIds = [...new Set(availableSlots)];
+      const attemptPlanByTarget = {};
+      const validTargetIds = uniqueAvailableTargetIds.filter((targetId) => {
+        const target = startingTargetById.get(targetId);
+        if (!target) return false;
+        const attemptsPreview = buildTrickAttemptsForRun({
+          skater,
+          target,
+          allSkateparkPieces: allSkateparkRunPieces,
+          priorSessionResults: priorResultsForSkater,
+        });
+        attemptPlanByTarget[targetId] = attemptsPreview;
+        return attemptsPreview.some((attempt) => attempt?.type && attempt?.coreName && attempt?.pieceDifficulty);
+      });
+
+      const candidateSlots =
+        validTargetIds.length > 0
+          ? availableSlots.filter((targetId) => validTargetIds.includes(targetId))
+          : availableSlots;
+      const slotIndex = randomIntInclusive(0, candidateSlots.length - 1);
+      const targetId = candidateSlots[slotIndex];
+      const chosenIndex = availableSlots.findIndex((slot) => slot === targetId);
+      if (chosenIndex >= 0) availableSlots.splice(chosenIndex, 1);
       assignments[skater.id] = targetId;
+      if (attemptPlanByTarget[targetId]) {
+        plannedAttemptsBySkater[skater.id] = attemptPlanByTarget[targetId];
+      }
     }
 
     const startPositions = {};
@@ -1019,29 +1131,118 @@ export const useGridModel = () => {
       },
     }));
 
-    const runOrder = shuffleItems(activeSkaters).filter((skater) => assignments[skater.id]);
-    const tickAttemptLog = [];
+    const runOrder = [
+      ...retrySkaters.filter((skater) => assignments[skater.id]),
+      ...nonRetrySkaters.filter((skater) => assignments[skater.id]),
+    ];
     for (const skater of runOrder) {
-      const target = startingTargetById.get(assignments[skater.id]);
+      const targetId = assignments[skater.id];
+      const target = startingTargetById.get(targetId);
       if (!target) continue;
-      const priorAttemptsForSkater = [...sessionState.trickAttempts, ...tickAttemptLog].filter(
+      const priorResultsForSkater = [...sessionState.trickAttempts, ...tickAttemptLog].filter(
         (entry) => entry.skaterId === skater.id
       );
-      const attempts = buildTrickAttemptsForRun({
-        skater,
-        target,
-        allSkateparkPieces: allSkateparkRunPieces,
-        priorSessionAttempts: priorAttemptsForSkater,
-      });
+      const retryState = retryQueue[skater.id];
+      const attempts = retryState
+        ? [
+            {
+              ...retryState.attempt,
+              attemptNumber: retryState.attemptNumber,
+            },
+          ]
+        : (
+            plannedAttemptsBySkater[skater.id] ||
+            buildTrickAttemptsForRun({
+              skater,
+              target,
+              allSkateparkPieces: allSkateparkRunPieces,
+              priorSessionResults: priorResultsForSkater,
+            })
+          ).map((attempt) => ({ ...attempt, attemptNumber: 1 }));
+
+      delete retryQueue[skater.id];
+
       attempts.forEach((attempt) => {
-        const priorAttempts = [...sessionState.trickAttempts, ...tickAttemptLog];
-        const isRepeatInSession = priorAttempts.some(
-          (entry) =>
-            entry.skaterId === skater.id &&
-            entry.trickName === attempt.trickName &&
-            entry.pieceName === attempt.pieceName &&
-            entry.pieceCoordinate === attempt.pieceCoordinate
+        if (!attempt?.type || !attempt?.coreName || !attempt?.pieceDifficulty) {
+          tickAttemptLog.push({
+            id: `${nextTick}-${skater.id}-${Math.random().toString(16).slice(2, 8)}`,
+            tick: nextTick,
+            skaterId: skater.id,
+            skaterName: skater.name,
+            skaterInitials: skater.initials,
+            skaterColor: skater.color,
+            sport: skater.sport,
+            targetLabel: target.label,
+            type: attempt?.type || null,
+            trickName: attempt?.trickName || "No Valid Trick Attempt",
+            coreName: attempt?.coreName || null,
+            coreLevel: attempt?.coreLevel || 0,
+            variantName: Array.isArray(attempt?.variantNames) ? attempt.variantNames.join(" + ") : null,
+            variantNames: attempt?.variantNames || [],
+            variantLevel: attempt?.variantLevel || 0,
+            pieceName: attempt?.pieceName || target.label,
+            pieceCoordinate: attempt?.pieceCoordinate || null,
+            pieceDifficulty: attempt?.pieceDifficulty || 0,
+            comboKey: attempt?.comboKey || null,
+            attemptNumber: attempt?.attemptNumber || 1,
+            landed: false,
+            control: 0,
+            landChance: 0,
+            difficultyScore: 0,
+            successScore: 0,
+            steezeScore: 1,
+            resultScore: 0,
+            status: "No Attempt",
+            willRetry: false,
+            isRepeatInSession: false,
+          });
+          return;
+        }
+
+        const trickTypeRating = getEffectiveTrickTypeRating(skater, attempt.type);
+        const difficultyScore = clamp(
+          getDifficultyPercent(attempt.pieceDifficulty, attempt.coreLevel, attempt.variantLevel),
+          1,
+          100
         );
+        const baseSuccess = getBaseSuccess(trickTypeRating, attempt.attemptNumber || 1);
+        const successScore = clamp(
+          applyInstructorBoost(
+            baseSuccess,
+            trickTypeRating,
+            sessionState.sessionType === "lesson" ? (sessionState.instructorTrickRating || 0) : 0
+          ),
+          1,
+          100
+        );
+        const resultScore = successScore - difficultyScore;
+        const band = getResultBand(resultScore);
+        const landed = band.landChance > 0 && randomIntInclusive(1, 100) <= band.landChance;
+        const control = landed ? randomIntInclusive(band.minControl, band.maxControl) : 0;
+        const steezeScore = landed
+          ? getTrickSteezeScore({
+              skaterSteezeRating: skater.steezeRating,
+              pieceDifficulty: attempt.pieceDifficulty,
+              control,
+            })
+          : 1;
+
+        const landedBefore = [...sessionState.trickAttempts, ...tickAttemptLog].some(
+          (entry) => entry.skaterId === skater.id && entry.landed && entry.comboKey && entry.comboKey === attempt.comboKey
+        );
+        const isRepeatInSession = landed && landedBefore;
+
+        const canRetry = !landed && (attempt.attemptNumber || 1) < 3;
+        const willRetry = canRetry && randomIntInclusive(1, 100) <= Math.max(1, Number(skater.determination || 1));
+        if (willRetry) {
+          retryQueue[skater.id] = {
+            targetId,
+            attempt: {
+              ...attempt,
+            },
+            attemptNumber: (attempt.attemptNumber || 1) + 1,
+          };
+        }
 
         tickAttemptLog.push({
           id: `${nextTick}-${skater.id}-${Math.random().toString(16).slice(2, 8)}`,
@@ -1055,9 +1256,25 @@ export const useGridModel = () => {
           type: attempt.type,
           trickName: attempt.trickName,
           coreName: attempt.coreName,
-          variantName: attempt.variantName,
+          coreLevel: attempt.coreLevel,
+          variantName: attempt.variantNames.length > 0 ? attempt.variantNames.join(" + ") : null,
+          variantNames: attempt.variantNames,
+          variantLevel: attempt.variantLevel,
           pieceName: attempt.pieceName,
           pieceCoordinate: attempt.pieceCoordinate,
+          pieceDifficulty: attempt.pieceDifficulty,
+          comboKey: attempt.comboKey,
+          attemptNumber: attempt.attemptNumber || 1,
+          trickTypeRating,
+          landed,
+          control,
+          landChance: band.landChance,
+          difficultyScore,
+          successScore,
+          steezeScore,
+          resultScore,
+          status: landed ? "Landed" : "Bailed",
+          willRetry,
           isRepeatInSession,
         });
       });
@@ -1078,6 +1295,7 @@ export const useGridModel = () => {
       skaterPositions: sessionEnded ? {} : prev.skaterPositions,
       trickAttempts: [...prev.trickAttempts, ...tickAttemptLog],
       currentTickTrickAttempts: tickAttemptLog,
+      retryQueue: sessionEnded ? {} : retryQueue,
     }));
 
     if (sessionEnded) success("Session ended after 20 ticks.");

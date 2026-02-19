@@ -83,9 +83,9 @@ const SessionPanel = ({
       </div>
 
       <div className="sessionPanel__section">
-        <h3>Session Trick Attempts</h3>
+        <h3>Session Trick Results</h3>
         {attemptLog.length === 0 && (
-          <div className="sessionPanel__empty">No tricks attempted yet in this session.</div>
+          <div className="sessionPanel__empty">No trick results yet in this session.</div>
         )}
 
         {groupedAttempts.map((group) => (
@@ -125,6 +125,14 @@ const SessionPanel = ({
                   {entry.type} | {entry.pieceName}
                   {entry.pieceCoordinate ? ` (${entry.pieceCoordinate})` : ""}
                 </span>
+                <span className="sessionPanel__scoreTag">D:{entry.difficultyScore ?? 0}</span>
+                <span className="sessionPanel__scoreTag">S:{entry.successScore ?? 0}</span>
+                <span className="sessionPanel__scoreTag">ST:{entry.steezeScore ?? 1}</span>
+                <span className={`sessionPanel__resultTag sessionPanel__resultTag--${entry.landed ? "landed" : "bailed"}`}>
+                  {entry.status}
+                  {entry.landed ? ` (${entry.control})` : ""}
+                </span>
+                {!entry.landed && entry.willRetry && <span className="sessionPanel__retryFlag">Retrying</span>}
                 {entry.isRepeatInSession && <span className="sessionPanel__repeatFlag">Repeat</span>}
               </div>
             ))}

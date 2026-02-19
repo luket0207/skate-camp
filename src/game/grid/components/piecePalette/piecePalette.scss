@@ -66,8 +66,9 @@
 
 .pieceItem {
   display: grid;
-  gap: 0.2rem;
-  justify-items: center;
+  gap: 0.25rem;
+  justify-items: start;
+  min-width: 210px;
 }
 
 .pieceCard {
@@ -94,12 +95,85 @@
 .pieceItem__meta {
   font-size: 0.6rem;
   font-weight: 700;
-  white-space: nowrap;
+  white-space: normal;
+}
+
+.pieceItem__name {
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.pieceItem__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.22rem;
+}
+
+.pieceItem__chip {
+  font-size: 0.56rem;
+  font-weight: 700;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 999px;
+  padding: 0.08rem 0.34rem;
+}
+
+.pieceItem__difficulty {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+.pieceItem__difficultyBlock {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.2rem 0.3rem;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.pieceItem__difficultyTitle {
+  font-size: 0.56rem;
+  font-weight: 800;
+}
+
+.pieceItem__meter {
+  display: grid;
+  grid-template-columns: 28px 1fr 18px;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.pieceItem__meterLabel {
+  font-size: 0.52rem;
+  font-weight: 700;
+}
+
+.pieceItem__meterBar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.pieceItem__meterFill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #eab308, #ef4444);
+}
+
+.pieceItem__meterValue,
+.pieceItem__meterNA {
+  font-size: 0.52rem;
+  font-weight: 700;
+  text-align: right;
 }
 
 .pieceItem__error {
-  max-width: 120px;
-  text-align: center;
+  max-width: 210px;
+  text-align: left;
   font-size: 0.58rem;
   line-height: 1.2;
   color: #991b1b;

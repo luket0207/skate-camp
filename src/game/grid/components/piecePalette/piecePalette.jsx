@@ -2,6 +2,35 @@ import React, { useEffect, useMemo, useState } from "react";
 import "./piecePalette.scss";
 
 const renderRouteType = (routeType) => routeType.join(", ");
+const asDisplay = (value) => (value === null || value === undefined ? "N/A" : value);
+const clampToTen = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, Math.min(10, parsed));
+};
+const shortType = (type) => (type === "bigAir" ? "Air" : type.charAt(0).toUpperCase() + type.slice(1, 3));
+
+const DifficultyMeter = ({ label, value }) => {
+  const safe = clampToTen(value);
+  if (safe === null) {
+    return (
+      <div className="pieceItem__meter">
+        <span className="pieceItem__meterLabel">{label}</span>
+        <span className="pieceItem__meterNA">-</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pieceItem__meter">
+      <span className="pieceItem__meterLabel">{label}</span>
+      <span className="pieceItem__meterBar" aria-hidden="true">
+        <span className="pieceItem__meterFill" style={{ width: `${safe * 10}%` }} />
+      </span>
+      <span className="pieceItem__meterValue">{safe}</span>
+    </div>
+  );
+};
 
 const createStandaloneDragPreview = (piece, tileSizePx) => {
   const gapPx = 4;
@@ -77,6 +106,32 @@ const PieceCard = ({ piece, isDragging, dragInvalidReason, onDragStart, onDragEn
       {piece.type === "Standalone"
         ? `${piece.size.rows}x${piece.size.cols} | Spots ${piece.startingSpots || 0}`
         : `${renderRouteType(piece.routeType)} | Spots ${piece.startingSpots || 0}`}
+    </div>
+    <div className="pieceItem__name">{piece.name}</div>
+    <div className="pieceItem__chips">
+      <span className="pieceItem__chip">Cost {asDisplay(piece.cost)}</span>
+      <span className="pieceItem__chip">Ops {asDisplay(piece.trickOpportunities)}</span>
+      <span className="pieceItem__chip">Spots {asDisplay(piece.startingSpots)}</span>
+      {piece.type === "Standalone" && <span className="pieceItem__chip">Size {piece.size.rows}x{piece.size.cols}</span>}
+      {piece.type === "Route" && <span className="pieceItem__chip">Type {renderRouteType(piece.routeType)}</span>}
+      {piece.type === "Route" && <span className="pieceItem__chip">Drop {asDisplay(piece.dropSpeed)}</span>}
+      {piece.type === "Route" && <span className="pieceItem__chip">Cost {asDisplay(piece.speedCost)}</span>}
+      {piece.type === "Route" && <span className="pieceItem__chip">Max {asDisplay(piece.maxEntranceSpeed)}</span>}
+    </div>
+
+    <div className="pieceItem__difficulty">
+      <div className="pieceItem__difficultyBlock">
+        <div className="pieceItem__difficultyTitle">RB</div>
+        {["stall", "grind", "tech", "spin", "bigAir"].map((type) => (
+          <DifficultyMeter key={`rb-${type}`} label={shortType(type)} value={piece.difficulty?.rollerblader?.[type]} />
+        ))}
+      </div>
+      <div className="pieceItem__difficultyBlock">
+        <div className="pieceItem__difficultyTitle">SB</div>
+        {["stall", "grind", "flip", "grab", "bigAir"].map((type) => (
+          <DifficultyMeter key={`sb-${type}`} label={shortType(type)} value={piece.difficulty?.skateboarder?.[type]} />
+        ))}
+      </div>
     </div>
     {isDragging && dragInvalidReason && <div className="pieceItem__error">{dragInvalidReason}</div>}
   </div>
