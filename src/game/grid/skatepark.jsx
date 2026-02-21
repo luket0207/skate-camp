@@ -4,18 +4,18 @@ import PiecePalette from "./components/piecePalette/piecePalette";
 import SessionPanel from "./components/sessionPanel/sessionPanel";
 import Board from "./components/board/board";
 import { useGridModel } from "./components/hooks/useGridModel";
-import "./grid.scss";
+import "./skatepark.scss";
 
-const Grid = () => {
+const Skatepark = () => {
   const model = useGridModel();
 
   return (
-    <div className="gridScene">
+    <div className="skatepark">
       <h1>Skatepark Builder</h1>
 
-      <div className="gridScene__layout">
-        <div className="gridScene__leftCol">
-          <div className="gridScene__boardWrap">
+      <div className="skatepark__layout">
+        <div className="skatepark__leftCol">
+          <div className="skatepark__boardWrap">
             <Board
               gridSize={model.gridSize}
               occupancy={model.occupancy}
@@ -30,7 +30,7 @@ const Grid = () => {
           </div>
 
           {model.gridMode === "edit" && (
-            <div className="gridScene__paletteWrap">
+            <div className="skatepark__paletteWrap">
           <PiecePalette
             standalonePieces={model.standalonePieces}
             routePieces={model.routePieces}
@@ -43,7 +43,7 @@ const Grid = () => {
           )}
 
           {model.gridMode === "session" && (
-            <div className="gridScene__paletteWrap">
+            <div className="skatepark__paletteWrap">
               <SessionPanel
                 sessionState={model.sessionState}
                 timeline={model.sessionTimeline}
@@ -56,13 +56,13 @@ const Grid = () => {
             </div>
           )}
 
-          <div className="gridScene__debug">
+          <div className="skatepark__debug">
             <h3>Debug: gameContext.skatepark</h3>
             <pre>{JSON.stringify(model.skatepark, null, 2)}</pre>
           </div>
         </div>
 
-        <div className="gridScene__rightCol">
+        <div className="skatepark__rightCol">
           <Controls
             gridSize={model.gridSize}
             gridMode={model.gridMode}
@@ -85,4 +85,4 @@ const Grid = () => {
   );
 };
 
-export default Grid;
+export default Skatepark;

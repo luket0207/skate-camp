@@ -40,6 +40,7 @@ const Tile = ({ row, col, occupant, skaters, onDrop, onClick }) => {
               title={skater.initials}
             >
               {skater.initials}
+              {skater.trickName && <span className="gridTile__skaterTrick">{skater.trickName}</span>}
             </span>
           ))}
         </span>

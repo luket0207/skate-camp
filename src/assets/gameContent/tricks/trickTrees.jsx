@@ -1,349 +1,139 @@
-const withUpgrades = (name, level, upgrades = []) => ({
+const m = (name, level, placement, options = {}) => ({
+  kind: "variant",
   name,
   level,
-  upgrades: upgrades.map((upgrade) => ({ name: upgrade.name, level: upgrade.level })),
+  cost: level,
+  placement,
+  parentVariant: name,
+  lockedBy: options.lockedBy || null,
+});
+
+const u = (parentVariant, name, level, placement, options = {}) => ({
+  kind: "upgrade",
+  name,
+  level,
+  cost: level,
+  placement,
+  parentVariant,
+  lockedBy: options.lockedBy || null,
+});
+
+const lock = (type, core) => ({ type, core });
+
+const core = (name, level, cost, modifiers = []) => ({
+  core: name,
+  level,
+  cost,
+  modifiers,
 });
 
 export const TRICK_TREES = {
   Rollerblader: {
     stall: [
-      {
-        core: "Frontside",
-        level: 1,
-        variants: [withUpgrades("Fakie Out", 1, [{ name: "360 Out", level: 5 }]), withUpgrades("Half Cab", 2, [{ name: "360 In", level: 4 }])],
-      },
-      {
-        core: "Backside",
-        level: 1,
-        variants: [withUpgrades("180 Out", 1, [{ name: "360 Out", level: 5 }]), withUpgrades("Zero Spin", 2, [{ name: "Full Cab", level: 3 }])],
-      },
-      {
-        core: "Makio",
-        level: 2,
-        variants: [withUpgrades("Fakie Out", 1), withUpgrades("Half Cab", 2, [{ name: "Full Cab", level: 3 }]), withUpgrades("Fishbrain", 4)],
-      },
-      {
-        core: "Soul",
-        level: 2,
-        variants: [withUpgrades("Fakie Out", 1), withUpgrades("Half Cab", 2, [{ name: "Full Cab", level: 4 }]), withUpgrades("Topside", 3)],
-      },
-      {
-        core: "Mizou",
-        level: 2,
-        variants: [withUpgrades("Fakie Out", 1), withUpgrades("Half Cab", 2, [{ name: "Full Cab", level: 4 }]), withUpgrades("Topside", 3)],
-      },
-      {
-        core: "Acid",
-        level: 3,
-        variants: [withUpgrades("Fakie Out", 1), withUpgrades("Half Cab", 2, [{ name: "Full Cab", level: 4 }]), withUpgrades("Topside", 3)],
-      },
-      {
-        core: "Pornstar",
-        level: 3,
-        variants: [withUpgrades("Fakie Out", 1), withUpgrades("Half Cab", 2, [{ name: "Full Cab", level: 4 }]), withUpgrades("Topside", 3)],
-      },
-      {
-        core: "Unity",
-        level: 3,
-        variants: [withUpgrades("Fakie Out", 1), withUpgrades("Half Cab", 2, [{ name: "Full Cab", level: 4 }]), withUpgrades("Savannah", 3)],
-      },
+      core("Frontside", 1, 5, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 3, "A"), m("Half Cab", 2, "B"), u("Half Cab", "360", 5, "B")]),
+      core("Backside", 1, 5, [m("180 Out", 1, "A"), u("180 Out", "360 Out", 3, "A"), m("Zero Spin", 2, "B"), u("Zero Spin", "Full Cab", 5, "B")]),
+      core("Makio", 2, 10, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 4, "A"), m("Half Cab", 2, "B"), u("Half Cab", "Full Cab", 5, "B"), m("Fishbrain", 4, "R")]),
+      core("Soul", 2, 10, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 4, "A"), m("Half Cab", 2, "B"), u("Half Cab", "Full Cab", 5, "B"), m("Topside", 3, "R")]),
+      core("Mizou", 2, 10, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 4, "A"), m("Half Cab", 2, "B"), u("Half Cab", "Full Cab", 5, "B"), m("Sweatstance", 3, "R")]),
+      core("Acid", 3, 20, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 4, "A"), m("Half Cab", 2, "B"), u("Half Cab", "Full Cab", 5, "B"), m("Top Acid", 3, "R")]),
+      core("Pornstar", 3, 20, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 4, "A"), m("Half Cab", 2, "B"), u("Half Cab", "Full Cab", 5, "B"), m("Top Porn", 3, "R")]),
+      core("Unity", 3, 20, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 4, "A"), m("Half Cab", 2, "B"), u("Half Cab", "Full Cab", 5, "B"), m("Savannah", 3, "R")]),
     ],
     grind: [
-      {
-        core: "Frontside",
-        level: 1,
-        variants: [
-          withUpgrades("Fakie Out", 1, [{ name: "360 Out", level: 5 }]),
-          withUpgrades("Half Cab", 2, [{ name: "Full Cab", level: 5 }]),
-          withUpgrades("Royal", 3),
-          withUpgrades("Fahrv", 4),
-        ],
-      },
-      {
-        core: "Backside",
-        level: 1,
-        variants: [
-          withUpgrades("Fakie Out", 1, [{ name: "360 Out", level: 5 }]),
-          withUpgrades("Half Cab", 2, [{ name: "Full Cab", level: 5 }]),
-          withUpgrades("Royal", 3),
-          withUpgrades("Fahrv", 4),
-        ],
-      },
-      {
-        core: "Makio",
-        level: 2,
-        variants: [
-          withUpgrades("Fakie Out", 1, [{ name: "360 Out", level: 5 }]),
-          withUpgrades("Half Cab", 2, [{ name: "Ally Oop", level: 5 }]),
-          withUpgrades("Fishbrain", 4),
-        ],
-      },
-      {
-        core: "Soul",
-        level: 2,
-        variants: [
-          withUpgrades("Fakie Out", 1, [{ name: "360 Out", level: 5 }]),
-          withUpgrades("Half Cab", 2, [{ name: "Ally Oop", level: 5 }]),
-          withUpgrades("Top Soul", 3),
-        ],
-      },
-      {
-        core: "Mizou",
-        level: 2,
-        variants: [
-          withUpgrades("Fakie Out", 1, [{ name: "360 Out", level: 5 }]),
-          withUpgrades("Half Cab", 2, [{ name: "Ally Oop", level: 5 }]),
-          withUpgrades("Sweatstance", 3),
-        ],
-      },
-      {
-        core: "Acid",
-        level: 3,
-        variants: [
-          withUpgrades("Fakie Out", 1, [{ name: "360 Out", level: 5 }]),
-          withUpgrades("Half Cab", 2, [{ name: "Ally Oop", level: 5 }]),
-          withUpgrades("Top Acid", 3),
-        ],
-      },
-      {
-        core: "Pornstar",
-        level: 3,
-        variants: [
-          withUpgrades("Fakie Out", 1, [{ name: "360 Out", level: 5 }]),
-          withUpgrades("Half Cab", 2, [{ name: "Ally Oop", level: 5 }]),
-          withUpgrades("Top Porn", 3),
-        ],
-      },
-      {
-        core: "Unity",
-        level: 3,
-        variants: [
-          withUpgrades("Fakie Out", 1, [{ name: "360 Out", level: 5 }]),
-          withUpgrades("Half Cab", 2, [{ name: "Ally Oop", level: 5 }]),
-          withUpgrades("Savannah", 3),
-        ],
-      },
+      core("Frontside", 1, 5, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 5, "A"), m("Half Cab", 2, "B"), u("Half Cab", "Full Cab", 5, "B"), m("Royal", 3, "R"), u("Royal", "Fahrv", 4, "R")]),
+      core("Backside", 1, 5, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 5, "A"), m("Half Cab", 2, "B"), u("Half Cab", "Full Cab", 5, "B"), m("Royal", 3, "R"), u("Royal", "Fahrv", 4, "R")]),
+      core("Makio", 2, 10, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 5, "A"), m("Half Cab", 2, "B"), u("Half Cab", "Ally Oop", 5, "B"), m("Fishbrain", 4, "R")]),
+      core("Soul", 2, 10, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 5, "A"), m("Half Cab", 2, "B"), u("Half Cab", "Ally Oop", 5, "B"), m("Top Soul", 3, "R")]),
+      core("Mizou", 2, 10, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 5, "A"), m("Half Cab", 2, "B"), u("Half Cab", "Ally Oop", 5, "B"), m("Sweatstance", 3, "R")]),
+      core("Acid", 3, 20, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 5, "A"), m("Half Cab", 2, "B"), u("Half Cab", "Ally Oop", 5, "B"), m("Top Acid", 3, "R")]),
+      core("Pornstar", 3, 20, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 5, "A"), m("Half Cab", 2, "B"), u("Half Cab", "Ally Oop", 5, "B"), m("Top Porn", 3, "R")]),
+      core("Unity", 3, 20, [m("Fakie Out", 1, "A"), u("Fakie Out", "360 Out", 5, "A"), m("Half Cab", 2, "B"), u("Half Cab", "Ally Oop", 5, "B"), m("Savannah", 3, "R")]),
     ],
     tech: [
-      {
-        core: "Manual",
-        level: 1,
-        variants: [withUpgrades("Heel Manual", 1, [{ name: "Toe Manual", level: 2 }]), withUpgrades("Fakie", 3), withUpgrades("One Foot", 4)],
-      },
-      {
-        core: "Cess Slide",
-        level: 3,
-        variants: [withUpgrades("Unity Cess Slide", 1, [{ name: "One Foot", level: 5 }]), withUpgrades("180", 2, [{ name: "360", level: 4 }])],
-      },
+      core("Manual", 1, 5, [m("Heel Manual", 1, "R"), u("Heel Manual", "Toe Manual", 2, "R"), m("Fakie", 3, "B"), m("One Foot", 4, "A")]),
+      core("Unity Cess Slide", 2, 10, [m("180", 2, "B"), u("180", "360", 3, "B"), m("180 Out", 1, "A"), u("180 Out", "360 Out", 4, "A")]),
+      core("Cess Slide", 3, 20, [m("180", 1, "B"), u("180", "360", 3, "B"), m("Back Foot Cess", 3, "R"), u("Back Foot Cess", "Front Foot Cess", 5, "R"), m("180 Out", 1, "A"), u("180 Out", "360 Out", 4, "A")]),
     ],
     spin: [
-      {
-        core: "180",
-        level: 1,
-        variants: [withUpgrades("Abstract", 1), withUpgrades("Mute Grab", 2), withUpgrades("Indy Grab", 3), withUpgrades("Safety Grab", 4), withUpgrades("Method Grab", 5)],
-      },
-      {
-        core: "360",
-        level: 2,
-        variants: [withUpgrades("Abstract", 1), withUpgrades("Mute Grab", 2), withUpgrades("Indy Grab", 3), withUpgrades("Safety Grab", 4), withUpgrades("Method Grab", 5)],
-      },
-      {
-        core: "540",
-        level: 3,
-        variants: [withUpgrades("Abstract", 1), withUpgrades("Mute Grab", 2), withUpgrades("Indy Grab", 3), withUpgrades("Safety Grab", 4), withUpgrades("Method Grab", 5)],
-      },
+      core("180", 1, 5, [m("Abstract", 1, "A"), u("Abstract", "Mute Grab", 2, "A"), u("Abstract", "Indy Grab", 3, "A"), u("Abstract", "Safety Grab", 4, "A"), u("Abstract", "Method Grab", 5, "A")]),
+      core("360", 2, 10, [m("Abstract", 1, "A"), u("Abstract", "Mute Grab", 2, "A"), u("Abstract", "Indy Grab", 3, "A"), u("Abstract", "Safety Grab", 4, "A"), u("Abstract", "Method Grab", 5, "A")]),
+      core("540", 3, 20, [m("Abstract", 1, "A"), u("Abstract", "Mute Grab", 2, "A"), u("Abstract", "Indy Grab", 3, "A"), u("Abstract", "Safety Grab", 4, "A"), u("Abstract", "Method Grab", 5, "A")]),
     ],
     bigAir: [
-      {
-        core: "720",
-        level: 2,
-        variants: [withUpgrades("Abstract", 1), withUpgrades("Mute Grab", 2), withUpgrades("Indy Grab", 3), withUpgrades("Safety Grab", 4), withUpgrades("Method Grab", 5)],
-      },
-      {
-        core: "900",
-        level: 3,
-        variants: [withUpgrades("Abstract", 1), withUpgrades("Mute Grab", 2), withUpgrades("Indy Grab", 3), withUpgrades("Safety Grab", 4), withUpgrades("Method Grab", 5)],
-      },
-      {
-        core: "Front Flip",
-        level: 3,
-        variants: [
-          withUpgrades("Bio", 3, [{ name: "360", level: 5 }]),
-          withUpgrades("Mute Grab", 1),
-          withUpgrades("Indy Grab", 2),
-          withUpgrades("Safety Grab", 3),
-          withUpgrades("Method Grab", 4),
-        ],
-      },
-      {
-        core: "Back Flip",
-        level: 3,
-        variants: [
-          withUpgrades("180", 3, [{ name: "360", level: 5 }]),
-          withUpgrades("Mute Grab", 1),
-          withUpgrades("Indy Grab", 2),
-          withUpgrades("Safety Grab", 3),
-          withUpgrades("Method Grab", 4),
-        ],
-      },
-      {
-        core: "Cork 540",
-        level: 3,
-        variants: [
-          withUpgrades("720", 3, [{ name: "900", level: 5 }]),
-          withUpgrades("Mute Grab", 1),
-          withUpgrades("Indy Grab", 2),
-          withUpgrades("Safety Grab", 3),
-          withUpgrades("Method Grab", 4),
-        ],
-      },
+      core("720", 2, 10, [m("Abstract", 1, "A"), u("Abstract", "Mute Grab", 2, "A"), u("Abstract", "Indy Grab", 3, "A"), u("Abstract", "Safety Grab", 4, "A"), u("Abstract", "Method Grab", 5, "A")]),
+      core("900", 3, 20, [m("Abstract", 1, "A"), u("Abstract", "Mute Grab", 2, "A"), u("Abstract", "Indy Grab", 3, "A"), u("Abstract", "Safety Grab", 4, "A"), u("Abstract", "Method Grab", 5, "A")]),
+      core("Front Flip", 3, 20, [m("Bio", 3, "R"), u("Bio", "360", 5, "R"), m("Mute Grab", 1, "A"), u("Mute Grab", "Indy Grab", 2, "A"), u("Mute Grab", "Safety Grab", 3, "A"), u("Mute Grab", "Method Grab", 4, "A")]),
+      core("Back Flip", 3, 20, [m("180", 3, "B"), u("180", "360", 5, "B"), m("Mute Grab", 1, "A"), u("Mute Grab", "Indy Grab", 2, "A"), u("Mute Grab", "Safety Grab", 3, "A"), u("Mute Grab", "Method Grab", 4, "A")]),
+      core("Cork 540", 3, 20, [m("Cork 720", 3, "R"), u("Cork 720", "Cork 900", 5, "R"), m("Mute Grab", 1, "A"), u("Mute Grab", "Indy Grab", 2, "A"), u("Mute Grab", "Safety Grab", 3, "A"), u("Mute Grab", "Method Grab", 4, "A")]),
     ],
   },
   Skateboarder: {
     stall: [
-      {
-        core: "Backside Axle Stall",
-        level: 1,
-        variants: [
-          withUpgrades("Fakie Out", 1),
-          withUpgrades("Fakie In", 2),
-          withUpgrades("Shuv In", 3, [{ name: "360 Shuv In", level: 5 }]),
-          withUpgrades("Kickflip In", 4, [{ name: "Heelflip In", level: 5 }]),
-        ],
-      },
-      {
-        core: "Frontside Axle Stall",
-        level: 1,
-        variants: [
-          withUpgrades("Fakie Out", 1),
-          withUpgrades("Fakie In", 2),
-          withUpgrades("Shuv In", 3, [{ name: "360 Shuv In", level: 5 }]),
-          withUpgrades("Kickflip In", 4, [{ name: "Heelflip In", level: 5 }]),
-        ],
-      },
-      {
-        core: "Rock to Fakie",
-        level: 1,
-        variants: [
-          withUpgrades("Rock and Roll", 1),
-          withUpgrades("Half Cab", 2),
-          withUpgrades("Shuv In", 3, [{ name: "360 Shuv In", level: 5 }]),
-          withUpgrades("Kickflip In", 4, [{ name: "Heelflip In", level: 5 }]),
-        ],
-      },
-      {
-        core: "Nose Stall",
-        level: 2,
-        variants: [withUpgrades("Fakie Out", 1), withUpgrades("Shuv In", 3, [{ name: "360 Shuv In", level: 5 }]), withUpgrades("Kickflip In", 4, [{ name: "Heelflip In", level: 5 }])],
-      },
-      {
-        core: "Tail Stall",
-        level: 2,
-        variants: [withUpgrades("Fakie Out", 1), withUpgrades("Shuv In", 3, [{ name: "360 Shuv In", level: 5 }]), withUpgrades("Kickflip In", 4, [{ name: "Heelflip In", level: 5 }])],
-      },
-      {
-        core: "Smith Stall",
-        level: 2,
-        variants: [withUpgrades("Fakie Out", 1), withUpgrades("Shuv In", 3, [{ name: "360 Shuv In", level: 5 }]), withUpgrades("Kickflip In", 4, [{ name: "Heelflip In", level: 5 }])],
-      },
-      {
-        core: "Feeble Stall",
-        level: 2,
-        variants: [withUpgrades("Fakie Out", 1), withUpgrades("Shuv In", 3, [{ name: "360 Shuv In", level: 5 }]), withUpgrades("Kickflip In", 4, [{ name: "Heelflip In", level: 5 }])],
-      },
-      {
-        core: "Blunt Stall",
-        level: 3,
-        variants: [withUpgrades("180 In", 2), withUpgrades("Shuv In", 3, [{ name: "360 Shuv In", level: 5 }]), withUpgrades("Kickflip In", 4, [{ name: "Heelflip In", level: 5 }])],
-      },
+      core("Backside Axle Stall", 1, 5, [
+        m("Fakie Out", 1, "A"),
+        m("Fakie", 2, "B"),
+        m("Shuv In Back Axle", 3, "R"),
+        u("Shuv In Back Axle", "360 Shuv In Back Axle", 4, "R", { lockedBy: lock("tech", "Shuv") }),
+        u("Shuv In Back Axle", "Kickflip Back Axle", 5, "R", { lockedBy: lock("tech", "Kickflip") }),
+        u("Shuv In Back Axle", "Heelflip Back Axle", 5, "R", { lockedBy: lock("tech", "Heelflip") }),
+      ]),
+      core("Frontside Axle Stall", 1, 5, [
+        m("Fakie Out", 1, "A"),
+        m("Fakie", 2, "B"),
+        m("Shuv In Front Axle", 3, "R"),
+        u("Shuv In Front Axle", "360 Shuv Front Axle", 5, "R", { lockedBy: lock("tech", "Shuv") }),
+        u("Shuv In Front Axle", "Kickflip Front Axle", 5, "R", { lockedBy: lock("tech", "Kickflip") }),
+        u("Shuv In Front Axle", "Heelflip Front Axle", 5, "R", { lockedBy: lock("tech", "Heelflip") }),
+      ]),
+      core("Rock Fakie", 1, 5, [
+        m("Rock and Roll", 1, "R"),
+        u("Rock and Roll", "Big Spin Rock and Roll", 3, "R", { lockedBy: lock("tech", "Shuv") }),
+        u("Rock and Roll", "Kickflip Rock and Roll", 5, "R", { lockedBy: lock("tech", "Kickflip") }),
+        u("Rock and Roll", "Heelflip Rock and Roll", 5, "R", { lockedBy: lock("tech", "Heelflip") }),
+      ]),
+      core("Nose Stall", 2, 10, [m("Fakie Out", 1, "A"), m("Shuv", 3, "B"), u("Shuv", "360 Shuv", 4, "B", { lockedBy: lock("tech", "Shuv") }), u("Shuv", "Kickflip", 5, "B", { lockedBy: lock("tech", "Kickflip") }), u("Shuv", "Heelflip", 5, "B", { lockedBy: lock("tech", "Heelflip") })]),
+      core("Tail Stall", 2, 10, [m("Fakie Out", 1, "A"), m("Shuv", 3, "B"), u("Shuv", "360 Shuv", 4, "B", { lockedBy: lock("tech", "Shuv") }), u("Shuv", "Kickflip", 5, "B", { lockedBy: lock("tech", "Kickflip") }), u("Shuv", "Heelflip", 5, "B", { lockedBy: lock("tech", "Heelflip") })]),
+      core("Smith Stall", 2, 10, [m("Fakie Out", 1, "A"), m("Shuv", 3, "B"), u("Shuv", "360 Shuv", 4, "B", { lockedBy: lock("tech", "Shuv") }), u("Shuv", "Kickflip", 5, "B", { lockedBy: lock("tech", "Kickflip") }), u("Shuv", "Heelflip", 5, "B", { lockedBy: lock("tech", "Heelflip") })]),
+      core("Feeble Stall", 2, 10, [m("Fakie Out", 1, "A"), m("Shuv", 3, "B"), u("Shuv", "360 Shuv", 4, "B", { lockedBy: lock("tech", "Shuv") }), u("Shuv", "Kickflip", 5, "B", { lockedBy: lock("tech", "Kickflip") }), u("Shuv", "Heelflip", 5, "B", { lockedBy: lock("tech", "Heelflip") })]),
+      core("Blunt Stall", 3, 20, [m("180 Out", 2, "A"), m("Shuv", 3, "B"), u("Shuv", "360 Shuv", 4, "B", { lockedBy: lock("tech", "Shuv") }), u("Shuv", "Kickflip", 5, "B", { lockedBy: lock("tech", "Kickflip") }), u("Shuv", "Heelflip", 5, "B", { lockedBy: lock("tech", "Heelflip") })]),
     ],
     grind: [
-      "Boardslide",
-      "50-50",
-      "5-0",
-      "Nosegrind",
-      "Smith Grind",
-      "Feeble Grind",
-      "Crooked Grind",
-      "Bluntslide",
-      "Noseblunt",
-    ].map((core, index) => ({
-      core,
-      level: index < 2 ? 1 : index < 6 ? 2 : 3,
-      variants: [
-        withUpgrades("Fakie Out", 1),
-        withUpgrades("Half Cab", 2, [{ name: index === 0 ? "Lipslide" : "Ally Oop", level: 5 }]),
-        withUpgrades("Shuv", 3, [{ name: "360 Shuv", level: 5 }]),
-        withUpgrades("Shuv Out", 2, [{ name: "360 Shuv Out", level: 4 }]),
-        withUpgrades("Kickflip", 4, [{ name: "Heelflip", level: 5 }]),
-        withUpgrades("Kickflip Out", 3, [{ name: "Heelflip Out", level: 4 }]),
-      ],
-    })),
-    flip: [
-      {
-        core: "Shuv",
-        level: 1,
-        variants: [withUpgrades("Fakie/Nollie", 2), withUpgrades("180", 1, [{ name: "Big Spin", level: 4 }]), withUpgrades("360 Shuv", 4, [{ name: "Impossible", level: 5 }])],
-      },
-      {
-        core: "Kickflip",
-        level: 2,
-        variants: [withUpgrades("Fakie/Nollie", 2), withUpgrades("Frontside", 2, [{ name: "Backside", level: 3 }]), withUpgrades("Varial", 4, [{ name: "360 Flip", level: 5 }]), withUpgrades("Double", 5), withUpgrades("360", 5)],
-      },
-      {
-        core: "Heelflip",
-        level: 2,
-        variants: [withUpgrades("Fakie/Nollie", 2), withUpgrades("Frontside", 2, [{ name: "Backside", level: 3 }]), withUpgrades("Varial", 4, [{ name: "Laser", level: 5 }]), withUpgrades("Double", 5), withUpgrades("360", 5)],
-      },
-      {
-        core: "Hardflip",
-        level: 3,
-        variants: [withUpgrades("Fakie/Nollie", 3), withUpgrades("Frontside", 4, [{ name: "Backside", level: 5 }]), withUpgrades("360", 5)],
-      },
+      core("Boardslide", 1, 5, [m("Lipslide", 5, "R"), m("Shuv", 3, "B"), u("Shuv", "Kickflip", 5, "B", { lockedBy: lock("tech", "Kickflip") }), u("Shuv", "Heelflip", 5, "B", { lockedBy: lock("tech", "Heelflip") }), m("Fakie Out", 1, "A"), u("Fakie Out", "Shuv Out", 3, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "Kickflip Out", 5, "A", { lockedBy: lock("tech", "Kickflip") }), u("Fakie Out", "Heelflip Out", 5, "A", { lockedBy: lock("tech", "Heelflip") })]),
+      core("50-50", 1, 5, [m("Half Cab 50-50", 2, "R"), u("Half Cab 50-50", "Ally Oop 50-50", 5, "R", { lockedBy: lock("spin", "180") }), m("Shuv", 3, "B"), u("Shuv", "Kickflip", 5, "B", { lockedBy: lock("tech", "Kickflip") }), u("Shuv", "Heelflip", 5, "B", { lockedBy: lock("tech", "Heelflip") }), m("Fakie Out", 1, "A"), u("Fakie Out", "Shuv Out", 3, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "Kickflip Out", 5, "A", { lockedBy: lock("tech", "Kickflip") }), u("Fakie Out", "Heelflip Out", 5, "A", { lockedBy: lock("tech", "Heelflip") })]),
+      core("5-0", 2, 10, [m("Half Cab 5-0", 2, "R"), u("Half Cab 5-0", "Alley Oop 5-0", 5, "R"), m("Shuv", 3, "B"), u("Shuv", "Kickflip", 5, "B", { lockedBy: lock("tech", "Kickflip") }), u("Shuv", "Heelflip", 5, "B", { lockedBy: lock("tech", "Heelflip") }), m("Fakie Out", 1, "A"), u("Fakie Out", "Shuv Out", 3, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "Kickflip Out", 5, "A", { lockedBy: lock("tech", "Kickflip") }), u("Fakie Out", "Heelflip Out", 5, "A", { lockedBy: lock("tech", "Heelflip") })]),
+      core("Nosegrind", 2, 10, [m("Half Cab Nosegrind", 2, "R"), u("Half Cab Nosegrind", "Alley Oop Nosegrind", 5, "R", { lockedBy: lock("spin", "180") }), m("Shuv", 3, "B"), u("Shuv", "360 Shuv", 5, "B", { lockedBy: lock("tech", "Shuv") }), u("Shuv", "Kickflip", 4, "B", { lockedBy: lock("tech", "Kickflip") }), u("Shuv", "Heelflip", 5, "B", { lockedBy: lock("tech", "Heelflip") }), m("Fakie Out", 1, "A"), u("Fakie Out", "Shuv Out", 2, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "360 Shuv Out", 4, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "Kickflip Out", 3, "A", { lockedBy: lock("tech", "Kickflip") }), u("Fakie Out", "Heelflip Out", 4, "A", { lockedBy: lock("tech", "Heelflip") })]),
+      core("Smith Grind", 2, 10, [m("Half Cab Smith Grind", 2, "R"), u("Half Cab Smith Grind", "Alley Oop Smith Grind", 5, "R", { lockedBy: lock("spin", "180") }), m("Shuv", 3, "B"), u("Shuv", "360 Shuv", 5, "B", { lockedBy: lock("tech", "Shuv") }), u("Shuv", "Kickflip", 4, "B", { lockedBy: lock("tech", "Kickflip") }), u("Shuv", "Heelflip", 5, "B", { lockedBy: lock("tech", "Heelflip") }), m("Fakie Out", 1, "A"), u("Fakie Out", "Shuv Out", 2, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "360 Shuv Out", 4, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "Kickflip Out", 3, "A", { lockedBy: lock("tech", "Kickflip") }), u("Fakie Out", "Heelflip Out", 4, "A", { lockedBy: lock("tech", "Heelflip") })]),
+      core("Feeble Grind", 2, 10, [m("Half Cab Feeble Grind", 2, "R"), u("Half Cab Feeble Grind", "Alley Oop Feeble Grind", 5, "R", { lockedBy: lock("spin", "180") }), m("Shuv", 3, "B"), u("Shuv", "360 Shuv", 5, "B", { lockedBy: lock("tech", "Shuv") }), u("Shuv", "Kickflip", 4, "B", { lockedBy: lock("tech", "Kickflip") }), u("Shuv", "Heelflip", 5, "B", { lockedBy: lock("tech", "Heelflip") }), m("Fakie Out", 1, "A"), u("Fakie Out", "Shuv Out", 2, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "360 Shuv Out", 4, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "Kickflip Out", 3, "A", { lockedBy: lock("tech", "Kickflip") }), u("Fakie Out", "Heelflip Out", 4, "A", { lockedBy: lock("tech", "Heelflip") })]),
+      core("Crooked Grind", 3, 20, [m("Half Cab Crooked Grind", 2, "R"), u("Half Cab Crooked Grind", "Alley Oop Crooked Grind", 5, "R"), m("Shuv", 3, "B"), u("Shuv", "360 Shuv", 5, "B", { lockedBy: lock("tech", "Shuv") }), u("Shuv", "Kickflip", 4, "B", { lockedBy: lock("tech", "Kickflip") }), u("Shuv", "Heelflip", 5, "B", { lockedBy: lock("tech", "Heelflip") }), m("Fakie Out", 1, "A"), u("Fakie Out", "Shuv Out", 2, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "360 Shuv Out", 4, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "Kickflip Out", 3, "A", { lockedBy: lock("tech", "Kickflip") }), u("Fakie Out", "Heelflip Out", 4, "A", { lockedBy: lock("tech", "Heelflip") })]),
+      core("Bluntslide", 3, 20, [m("Half Cab Bluntslide", 2, "R"), u("Half Cab Bluntslide", "Alley Oop Bluntslide", 5, "R", { lockedBy: lock("spin", "180") }), m("Shuv", 3, "B"), u("Shuv", "360 Shuv", 5, "B", { lockedBy: lock("tech", "Shuv") }), u("Shuv", "Kickflip", 4, "B", { lockedBy: lock("tech", "Kickflip") }), u("Shuv", "Heelflip", 5, "B", { lockedBy: lock("tech", "Heelflip") }), m("Fakie Out", 1, "A"), u("Fakie Out", "Shuv Out", 2, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "360 Shuv Out", 4, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "Kickflip Out", 3, "A", { lockedBy: lock("tech", "Kickflip") }), u("Fakie Out", "Heelflip Out", 4, "A", { lockedBy: lock("tech", "Heelflip") })]),
+      core("Noseblunt", 3, 20, [m("Half Cab Noseblunt", 2, "R"), u("Half Cab Noseblunt", "Alley Oop Noseblunt", 5, "R", { lockedBy: lock("spin", "180") }), m("Shuv", 3, "B"), u("Shuv", "360 Shuv", 5, "B", { lockedBy: lock("tech", "Shuv") }), u("Shuv", "Kickflip", 4, "B", { lockedBy: lock("tech", "Kickflip") }), u("Shuv", "Heelflip", 5, "B", { lockedBy: lock("tech", "Heelflip") }), m("Fakie Out", 1, "A"), u("Fakie Out", "Shuv Out", 2, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "360 Shuv Out", 4, "A", { lockedBy: lock("tech", "Shuv") }), u("Fakie Out", "Kickflip Out", 3, "A", { lockedBy: lock("tech", "Kickflip") }), u("Fakie Out", "Heelflip Out", 4, "A", { lockedBy: lock("tech", "Heelflip") })]),
     ],
-    grab: [
-      { core: "Indy Grab", level: 1 },
-      { core: "Melon Grab", level: 1 },
-      { core: "Mute Grab", level: 1 },
-      { core: "Method Grab", level: 2 },
-      { core: "Nosegrab", level: 2 },
-      { core: "Tailgrab", level: 2 },
-      { core: "Lien Grab", level: 3 },
-      { core: "Seatbelt Grab", level: 3 },
-    ].map((item) => ({
-      core: item.core,
-      level: item.level,
-      variants: [withUpgrades("180", 1, [{ name: "360", level: 3 }, { name: "540", level: 5 }])],
-    })),
+    tech: [
+      core("Shuv", 1, 5, [m("Fakie", 1, "B1"), u("Fakie", "Nollie", 3, "B1"), m("Big Spin", 2, "R"), u("Big Spin", "360 Shuv", 4, "R"), u("Big Spin", "Impossible", 5, "R")]),
+      core("Kickflip", 2, 10, [m("Fakie", 1, "B1"), u("Fakie", "Nollie", 3, "B1"), m("Frontside", 2, "B2"), u("Frontside", "Backside", 3, "B2", { lockedBy: lock("spin", "180") }), u("Frontside", "360", 5, "B2", { lockedBy: lock("spin", "360") }), m("Varial Kickflip", 4, "R"), u("Varial Kickflip", "360 Flip", 5, "R")]),
+      core("Heelflip", 2, 10, [m("Fakie", 1, "B1"), u("Fakie", "Nollie", 3, "B1"), m("Frontside", 2, "B2"), u("Frontside", "Backside", 3, "B2", { lockedBy: lock("spin", "180") }), u("Frontside", "360", 5, "B2", { lockedBy: lock("spin", "360") }), m("Varial Heel", 4, "R"), u("Varial Heel", "Laser", 5, "R")]),
+      core("Hardflip", 3, 20, [m("Fakie", 1, "B1"), u("Fakie", "Nollie", 3, "B1"), m("Frontside", 2, "B2"), u("Frontside", "Backside", 3, "B2", { lockedBy: lock("spin", "180") }), u("Frontside", "360", 5, "B2", { lockedBy: lock("spin", "360") }), m("Dolphin Flip", 3, "R")]),
+    ],
+    spin: [
+      core("180", 1, 5, [m("Indy Grab", 2, "A"), u("Indy Grab", "Mute Grab", 3, "A"), u("Indy Grab", "Safety Grab", 4, "A"), u("Indy Grab", "Method Grab", 5, "A")]),
+      core("360", 2, 10, [m("Indy Grab", 2, "A"), u("Indy Grab", "Mute Grab", 3, "A"), u("Indy Grab", "Safety Grab", 4, "A"), u("Indy Grab", "Method Grab", 5, "A")]),
+      core("540", 3, 20, [m("Indy Grab", 2, "A"), u("Indy Grab", "Mute Grab", 3, "A"), u("Indy Grab", "Safety Grab", 4, "A"), u("Indy Grab", "Method Grab", 5, "A")]),
+    ],
     bigAir: [
-      {
-        core: "Cab (Indy)",
-        level: 1,
-        variants: [
-          withUpgrades("Mute Grab", 1, [{ name: "Tail Grab", level: 2 }, { name: "Seatbelt Grab", level: 3 }]),
-          withUpgrades("360", 2, [{ name: "540", level: 3 }, { name: "720", level: 5 }]),
-        ],
-      },
-      { core: "Japan Air", level: 1, variants: [withUpgrades("360", 2, [{ name: "540", level: 3 }, { name: "720", level: 5 }])] },
-      { core: "Airwalk", level: 2, variants: [withUpgrades("360", 2, [{ name: "540", level: 3 }, { name: "720", level: 5 }])] },
-      { core: "Kickflip Indy", level: 2, variants: [withUpgrades("360", 2, [{ name: "540", level: 3 }, { name: "720", level: 5 }])] },
-      { core: "Heelflip Indy", level: 2, variants: [withUpgrades("360", 2, [{ name: "540", level: 3 }, { name: "720", level: 5 }])] },
-      { core: "Christ Air", level: 2, variants: [withUpgrades("360", 2, [{ name: "540", level: 3 }, { name: "720", level: 5 }])] },
-      {
-        core: "McTwist (Indy)",
-        level: 3,
-        variants: [withUpgrades("Mute Grab", 1, [{ name: "Tail Grab", level: 2 }]), withUpgrades("720", 4, [{ name: "900", level: 5 }])],
-      },
-      {
-        core: "Backflip (Indy)",
-        level: 3,
-        variants: [withUpgrades("Mute Grab", 1, [{ name: "Tail Grab", level: 2 }]), withUpgrades("180", 4, [{ name: "360", level: 5 }])],
-      },
+      core("Indy Grab", 1, 5, [m("Mute Grab", 1, "R"), u("Mute Grab", "Tail Grab", 2, "R"), u("Mute Grab", "Seatbelt Grab", 3, "R"), m("Fakie", 2, "B"), u("Fakie", "360", 3, "B", { lockedBy: lock("spin", "360") }), u("Fakie", "540", 5, "B", { lockedBy: lock("spin", "540") })]),
+      core("Japan Air", 1, 5, [m("Fakie", 2, "B"), u("Fakie", "360", 3, "B", { lockedBy: lock("spin", "360") }), u("Fakie", "540", 5, "B", { lockedBy: lock("spin", "540") })]),
+      core("Airwalk", 2, 10, [m("Fakie", 2, "B"), u("Fakie", "360", 3, "B", { lockedBy: lock("spin", "360") }), u("Fakie", "540", 5, "B", { lockedBy: lock("spin", "540") })]),
+      core("Kickflip Indy", 2, 10, [m("Fakie", 2, "B"), u("Fakie", "360", 3, "B", { lockedBy: lock("spin", "360") }), u("Fakie", "540", 5, "B", { lockedBy: lock("spin", "540") })]),
+      core("Heelflip Indy", 2, 10, [m("Fakie", 2, "B"), u("Fakie", "360", 3, "B", { lockedBy: lock("spin", "360") }), u("Fakie", "540", 5, "B", { lockedBy: lock("spin", "540") })]),
+      core("Christ Air", 2, 10, [m("Fakie", 2, "B"), u("Fakie", "360", 3, "B", { lockedBy: lock("spin", "360") }), u("Fakie", "540", 5, "B", { lockedBy: lock("spin", "540") })]),
+      core("McTwist", 3, 20, [m("720", 4, "B1"), u("720", "900", 5, "B1"), m("Mute", 1, "B2"), u("Mute", "Tail Grab", 2, "B2")]),
+      core("Backflip (Indy)", 3, 20, [m("180", 4, "B1"), u("180", "360", 5, "B1"), m("Mute Grab", 1, "B2"), u("Mute Grab", "Tail Grab", 2, "B2")]),
     ],
   },
 };
 
 export const TRICK_TYPES_BY_SPORT = {
   Rollerblader: ["stall", "grind", "tech", "spin", "bigAir"],
-  Skateboarder: ["stall", "grind", "flip", "grab", "bigAir"],
+  Skateboarder: ["stall", "grind", "tech", "spin", "bigAir"],
 };
+

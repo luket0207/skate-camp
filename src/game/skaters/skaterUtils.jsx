@@ -1,4 +1,9 @@
-import { buildGeneratedTrickLibrary } from "./trickLibraryUtils";
+import {
+  buildGeneratedTrickLibrary,
+  getMaxTypeCostBySport,
+  getTypeRatingsForSkater,
+  recalculateSkaterTypeRatings,
+} from "./trickLibraryUtils";
 
 const FIRST_NAMES = ["Alex", "Mia", "Noah", "Zoe", "Liam", "Eva", "Jade", "Cole", "Ivy", "Finn"];
 const LAST_NAMES = ["Mercer", "Hart", "Price", "Quinn", "Ford", "Stone", "Vale", "Bishop", "Reed", "Cross"];
@@ -11,108 +16,120 @@ export const SKATER_SPORT = Object.freeze({
 });
 
 const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-
 const randomFrom = (items) => items[randInt(0, items.length - 1)];
-
-const weightedLowInt = (min, max, power = 1.75) => {
-  const normalized = Math.pow(Math.random(), power);
-  return min + Math.floor(normalized * (max - min + 1));
-};
-
-const makeBeginnerTypeRatingFromPotential = (potential) => {
-  if (potential <= 20) {
-    return randInt(1, 4);
-  }
-
-  if (potential <= 50) {
-    const roll = Math.random();
-    return roll < 0.4 ? randInt(1, 2) : randInt(3, 5);
-  }
-
-  if (potential <= 80) {
-    return randInt(3, 6);
-  }
-
-  const roll = Math.random();
-  return roll < 0.6 ? randInt(3, 6) : randInt(6, 8);
-};
-
-const computeSkillLevel = (stats) => {
-  const total = stats.stall + stats.grind + (stats.tech || stats.flip || 0) + (stats.spin || stats.grab || 0) + stats.bigAir;
-  return Math.max(1, Math.floor(total / 5));
-};
+const weightedLowInt = (min, max, power = 1.75) => min + Math.floor(Math.pow(Math.random(), power) * (max - min + 1));
+const makeId = () => `skater-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 
 const makeInitials = (name) => {
   const [first, last] = name.split(" ");
   return `${first?.[0] || ""}${last?.[0] || ""}`.toUpperCase();
 };
 
-const makeId = () => `skater-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-export const generateBeginnerSkater = (sport) => {
-  const safeSport = Object.values(SKATER_SPORT).includes(sport) ? sport : SKATER_SPORT.SKATEBOARDER;
-  const name = `${randomFrom(FIRST_NAMES)} ${randomFrom(LAST_NAMES)}`;
+const getRatingPercent = (skater, type) => {
+  const rating = Number(skater[type] || 0);
+  const maxByType = getMaxTypeCostBySport(skater.sport || SKATER_SPORT.SKATEBOARDER);
+  const typeMax = Number(maxByType[type] || 1);
+  if (typeMax <= 0) return 0;
+  return clamp(Math.round((rating / typeMax) * 100), 0, 100);
+};
 
-  const stallPotential = randInt(20, 100);
-  const grindPotential = randInt(20, 100);
-  const specialPotentialA = randInt(20, 100);
-  const specialPotentialB = randInt(20, 100);
-  const bigAirPotential = randInt(20, 100);
+const computePotentialFromPercent = (ratingPercent, minCap = 20) => {
+  const floor = Math.max(minCap, ratingPercent + 1);
+  if (floor >= 100) return 100;
+  return randInt(floor, 100);
+};
 
-  const commonStats = {
-    stall: makeBeginnerTypeRatingFromPotential(stallPotential),
-    grind: makeBeginnerTypeRatingFromPotential(grindPotential),
-    stallPotential,
-    grindPotential,
-    bigAirPotential,
+const withDerivedRatings = (base) => {
+  const ratings = getTypeRatingsForSkater(base);
+  const derived = recalculateSkaterTypeRatings({ ...base, ...ratings });
+  return {
+    ...base,
+    ...ratings,
+    skillLevel: derived.skillLevel,
+  };
+};
+
+const withPotentials = (skater) => {
+  const common = {
+    stallPotential: computePotentialFromPercent(getRatingPercent(skater, "stall")),
+    grindPotential: computePotentialFromPercent(getRatingPercent(skater, "grind")),
+    bigAirPotential: computePotentialFromPercent(getRatingPercent(skater, "bigAir")),
   };
 
-  const trickStats =
-    safeSport === SKATER_SPORT.ROLLERBLADER
-      ? {
-          ...commonStats,
-          tech: makeBeginnerTypeRatingFromPotential(specialPotentialA),
-          spin: makeBeginnerTypeRatingFromPotential(specialPotentialB),
-          bigAir: 0,
-          techPotential: specialPotentialA,
-          spinPotential: specialPotentialB,
-        }
-      : {
-          ...commonStats,
-          flip: makeBeginnerTypeRatingFromPotential(specialPotentialA),
-          grab: makeBeginnerTypeRatingFromPotential(specialPotentialB),
-          bigAir: 0,
-          flipPotential: specialPotentialA,
-          grabPotential: specialPotentialB,
-        };
+  if (skater.sport === SKATER_SPORT.ROLLERBLADER) {
+    return {
+      ...skater,
+      ...common,
+      techPotential: computePotentialFromPercent(getRatingPercent(skater, "tech")),
+      spinPotential: computePotentialFromPercent(getRatingPercent(skater, "spin")),
+    };
+  }
 
-  const generated = {
+  return {
+    ...skater,
+    ...common,
+    techPotential: computePotentialFromPercent(getRatingPercent(skater, "tech")),
+    spinPotential: computePotentialFromPercent(getRatingPercent(skater, "spin")),
+  };
+};
+
+const generateSkater = ({ sport, tier, energyMin, energyMax, weightedEnergy = false }) => {
+  const safeSport = Object.values(SKATER_SPORT).includes(sport) ? sport : SKATER_SPORT.SKATEBOARDER;
+  const name = `${randomFrom(FIRST_NAMES)} ${randomFrom(LAST_NAMES)}`;
+  const trickLibrary = buildGeneratedTrickLibrary({ sport: safeSport, tier });
+
+  const switchRating = randInt(1, 9);
+  const base = {
     id: makeId(),
     name,
     initials: makeInitials(name),
     color: randomFrom(SKATER_COLORS),
-    type: "Beginner",
+    type: tier,
     sport: safeSport,
-    baseEnergy: weightedLowInt(3, 10),
+    baseEnergy: weightedEnergy ? weightedLowInt(energyMin, energyMax) : randInt(energyMin, energyMax),
     determination: randInt(1, 100),
     steezeRating: 5,
     baseSteeze: randInt(1, 10),
-    switchRating: randInt(1, 3),
-    switchPotential: randInt(3, 10),
-    ...trickStats,
-    skillLevel: computeSkillLevel(trickStats),
-    trickLibrary: [],
+    switchRating,
+    switchPotential: randInt(Math.min(10, switchRating + 1), 10),
+    trickLibrary,
   };
 
-  return {
-    ...generated,
-    trickLibrary: buildGeneratedTrickLibrary(generated),
-  };
+  const withRatings = withDerivedRatings(base);
+  const withTierRules = tier === "Beginner" ? { ...withRatings, bigAir: 0 } : withRatings;
+  return withPotentials(withTierRules);
 };
+
+export const generateBeginnerSkater = (sport) =>
+  generateSkater({
+    sport,
+    tier: "Beginner",
+    energyMin: 3,
+    energyMax: 10,
+    weightedEnergy: true,
+  });
+
+export const generateMediumSkater = (sport) =>
+  generateSkater({
+    sport,
+    tier: "Medium",
+    energyMin: 6,
+    energyMax: 12,
+  });
+
+export const generateProSkater = (sport) =>
+  generateSkater({
+    sport,
+    tier: "Pro",
+    energyMin: 10,
+    energyMax: 15,
+  });
 
 export const shuffleItems = (items) => {
   const next = [...items];
-  for (let i = next.length - 1; i > 0; i--) {
+  for (let i = next.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [next[i], next[j]] = [next[j], next[i]];
   }

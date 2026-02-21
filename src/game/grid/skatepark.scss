@@ -1,6 +1,6 @@
 @use "../../assets/scss/ui/import" as *;
 
-.gridScene {
+.skatepark {
   --tile-size: 40px;
   --tile-gap: 4px;
   --max-grid-size: 10;
@@ -24,22 +24,22 @@
   }
 }
 
-.gridScene__layout {
+.skatepark__layout {
   display: flex;
   gap: 1rem;
   align-items: flex-start;
   
 }
 
-.gridScene__leftCol {
+.skatepark__leftCol {
   display: grid;
   gap: 1rem;
   align-content: start;
   justify-items: center;
-  width: 600px;
+  width: 700px;
 }
 
-.gridScene__boardWrap {
+.skatepark__boardWrap {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -48,18 +48,18 @@
   height: var(--max-grid-px);
 }
 
-.gridScene__rightCol {
+.skatepark__rightCol {
   width: 240px;
   min-width: 240px;
   position: sticky;
   top: 1rem;
 }
 
-.gridScene__paletteWrap {
+.skatepark__paletteWrap {
   margin-top: 0;
 }
 
-.gridScene__debug {
+.skatepark__debug {
   margin-top: 0;
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(0, 0, 0, 0.2);
@@ -83,11 +83,11 @@
 }
 
 @media (max-width: 900px) {
-  .gridScene__layout {
+  .skatepark__layout {
     flex-direction: column;
   }
 
-  .gridScene__rightCol {
+  .skatepark__rightCol {
     width: 100%;
     min-width: 0;
     position: static;

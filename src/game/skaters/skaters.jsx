@@ -1,11 +1,23 @@
 import React, { useMemo, useState } from "react";
 import { useGame } from "../../engine/gameContext/gameContext";
 import Button, { BUTTON_VARIANT } from "../../engine/ui/button/button";
-import { generateBeginnerSkater, SKATER_SPORT } from "./skaterUtils";
+import { generateBeginnerSkater, generateMediumSkater, generateProSkater, SKATER_SPORT } from "./skaterUtils";
 import { useModal, MODAL_BUTTONS } from "../../engine/ui/modal/modalContext";
 import TrickTreeModalContent from "./components/trickTreeModalContent";
-import { getLibraryLevelTotal, getTypeRatingsForSkater } from "./trickLibraryUtils";
+import { getLibraryLevelTotal, getMaxTypeCostBySport, getTypeRatingsForSkater, recalculateSkaterTypeRatings } from "./trickLibraryUtils";
+import { buildTrickName } from "./trickNameUtils";
 import "./skaters.scss";
+
+const toTitle = (value) =>
+  String(value || "")
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (first) => first.toUpperCase())
+    .trim();
+
+const getTrickTypeKeys = (sport) =>
+  sport === SKATER_SPORT.ROLLERBLADER
+    ? ["stall", "grind", "tech", "spin", "bigAir"]
+    : ["stall", "grind", "tech", "spin", "bigAir"];
 
 const Skaters = () => {
   const { gameState, setGameValue } = useGame();
@@ -19,6 +31,16 @@ const Skaters = () => {
 
   const addDebugSkater = () => {
     const next = generateBeginnerSkater(debugSport);
+    setGameValue("player.skaterPool", [...pool, next]);
+  };
+
+  const addDebugMediumSkater = () => {
+    const next = generateMediumSkater(debugSport);
+    setGameValue("player.skaterPool", [...pool, next]);
+  };
+
+  const addDebugProSkater = () => {
+    const next = generateProSkater(debugSport);
     setGameValue("player.skaterPool", [...pool, next]);
   };
 
@@ -38,7 +60,13 @@ const Skaters = () => {
           skater={skater}
           onCommit={(nextLibrary) => {
             const nextPool = pool.map((poolSkater) =>
-              poolSkater.id === skater.id ? { ...poolSkater, trickLibrary: nextLibrary } : poolSkater
+              poolSkater.id === skater.id
+                ? {
+                    ...poolSkater,
+                    trickLibrary: nextLibrary,
+                    ...recalculateSkaterTypeRatings({ ...poolSkater, trickLibrary: nextLibrary }),
+                  }
+                : poolSkater
             );
             setGameValue("player.skaterPool", nextPool);
             closeModal();
@@ -52,19 +80,25 @@ const Skaters = () => {
     <div className="skatersPage">
       <div className="skatersPage__header">
         <h1>Player Skaters</h1>
-        <Button variant={BUTTON_VARIANT.SECONDARY} to="/grid">
-          Back To Grid
+        <Button variant={BUTTON_VARIANT.SECONDARY} to="/skatepark">
+          Back To Skatepark
         </Button>
       </div>
 
       <div className="skatersPage__debug">
-        <h3>Debug: Add Beginner Skater Directly</h3>
+        <h3>Debug: Add Skater Directly</h3>
         <select value={debugSport} onChange={(event) => setDebugSport(event.target.value)}>
           <option value={SKATER_SPORT.SKATEBOARDER}>Skateboarder</option>
           <option value={SKATER_SPORT.ROLLERBLADER}>Rollerblader</option>
         </select>
         <Button variant={BUTTON_VARIANT.PRIMARY} onClick={addDebugSkater}>
           Generate Beginner Skater
+        </Button>
+        <Button variant={BUTTON_VARIANT.SECONDARY} onClick={addDebugMediumSkater}>
+          Generate Medium Skater
+        </Button>
+        <Button variant={BUTTON_VARIANT.SECONDARY} onClick={addDebugProSkater}>
+          Generate Pro Skater
         </Button>
       </div>
 
@@ -90,7 +124,97 @@ const Skaters = () => {
               <span>Trick Library Total: {getLibraryLevelTotal(skater.trickLibrary || [])}</span>
             </div>
 
-            <pre>{JSON.stringify(skater, null, 2)}</pre>
+            <div className="skatersPage__details">
+              <section className="skatersPage__section">
+                <h5>Profile</h5>
+                <ul className="skatersPage__kvList">
+                  <li><strong>ID:</strong> {skater.id}</li>
+                  <li><strong>Type:</strong> {skater.type}</li>
+                  <li><strong>Sport:</strong> {skater.sport}</li>
+                  <li><strong>Initials:</strong> {skater.initials}</li>
+                  <li><strong>Base Energy:</strong> {skater.baseEnergy}</li>
+                  <li><strong>Skill Level:</strong> {skater.skillLevel}</li>
+                  <li><strong>Determination:</strong> {skater.determination}</li>
+                  <li><strong>Steeze Rating:</strong> {skater.steezeRating}</li>
+                  <li><strong>Base Steeze:</strong> {skater.baseSteeze}</li>
+                  <li><strong>Switch Rating:</strong> {skater.switchRating}</li>
+                  <li><strong>Switch Potential:</strong> {skater.switchPotential}</li>
+                </ul>
+              </section>
+
+              <section className="skatersPage__section">
+                <h5>Trick Type Ratings</h5>
+                <ul className="skatersPage__kvList">
+                  {getTrickTypeKeys(skater.sport).map((typeKey) => {
+                    const rating = getTypeRatingsForSkater(skater)[typeKey] || 0;
+                    const typeMax = getMaxTypeCostBySport(skater.sport)[typeKey] || 1;
+                    const fill = Math.round((rating / typeMax) * 100);
+                    return (
+                      <li key={`${skater.id}-rating-${typeKey}`}>
+                        <strong>{toTitle(typeKey)}:</strong> {rating} / {typeMax} ({fill}%)
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+
+              <section className="skatersPage__section">
+                <h5>Trick Type Potentials</h5>
+                <ul className="skatersPage__kvList">
+                  {getTrickTypeKeys(skater.sport).map((typeKey) => {
+                    const potentialKey = `${typeKey}Potential`;
+                    return (
+                      <li key={`${skater.id}-potential-${typeKey}`}>
+                        <strong>{toTitle(typeKey)} Potential:</strong> {skater[potentialKey] ?? 0}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+
+              <section className="skatersPage__section skatersPage__section--library">
+                <h5>Trick Library</h5>
+                {(skater.trickLibrary || []).length < 1 ? (
+                  <div className="skatersPage__emptyLibrary">No unlocked tricks.</div>
+                ) : (
+                  <div className="skatersPage__libraryTypeList">
+                    {getTrickTypeKeys(skater.sport).map((typeKey) => {
+                      const typeCores = (skater.trickLibrary || []).filter((entry) => entry.type === typeKey);
+                      if (typeCores.length < 1) return null;
+                      return (
+                        <article key={`${skater.id}-library-${typeKey}`} className="skatersPage__libraryType">
+                          <header>{toTitle(typeKey)}</header>
+                          <div className="skatersPage__coreList">
+                            {typeCores.map((core) => (
+                              <div key={`${skater.id}-${typeKey}-${core.core}`} className="skatersPage__coreCard">
+                                <div className="skatersPage__coreTop">
+                                  <span className="skatersPage__coreName">{core.core}</span>
+                                  <span className="skatersPage__coreLevel">Core L{core.coreLevel} / C{core.coreCost}</span>
+                                </div>
+                                <div className="skatersPage__variantList">
+                                  {(core.modifiers || []).length < 1 ? (
+                                    <span className="skatersPage__variantEmpty">No variants unlocked</span>
+                                  ) : (
+                                    (core.modifiers || []).map((variant) => (
+                                      <span
+                                        key={`${skater.id}-${typeKey}-${core.core}-${variant.parentVariant || ""}-${variant.name}`}
+                                        className={`skatersPage__variantChip ${variant.kind === "upgrade" ? "is-upgrade" : "is-variant"}`}
+                                      >
+                                        {variant.name} ({variant.placement}) C{variant.cost}
+                                      </span>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            </div>
           </div>
         ))}
       </div>

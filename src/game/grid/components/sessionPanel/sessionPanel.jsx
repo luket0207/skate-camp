@@ -19,19 +19,22 @@ const SessionPanel = ({
         skaterInitials: entry.skaterInitials,
         skaterColor: entry.skaterColor,
         attempts: [],
+        totalPoints: 0,
       };
     }
     acc[entry.skaterId].attempts.push(entry);
+    acc[entry.skaterId].totalPoints += Number(entry.trickPoints || 0);
     return acc;
   }, {});
 
-  const groupedAttempts = (sessionState.sessionType === "beginner" ? sessionState.skaters : [])
+  const groupedAttempts = sessionState.skaters
     .map((skater) => ({
       skaterId: skater.id,
       skaterName: skater.name,
       skaterInitials: skater.initials,
       skaterColor: skater.color,
       attempts: attemptsBySkater[skater.id]?.attempts || [],
+      totalPoints: attemptsBySkater[skater.id]?.totalPoints || 0,
     }))
     .concat(
       Object.values(attemptsBySkater).filter(
@@ -95,6 +98,7 @@ const SessionPanel = ({
                 {group.skaterInitials}
               </span>
               <span>{group.skaterName}</span>
+              <span>Points: {group.totalPoints}</span>
               {sessionState.sessionType === "beginner" && (
                 <Button
                   variant={BUTTON_VARIANT.SECONDARY}
@@ -117,17 +121,15 @@ const SessionPanel = ({
             {group.attempts.map((entry) => (
               <div key={entry.id} className="sessionPanel__attemptItem">
                 <span className="sessionPanel__attemptTick">T{entry.tick}</span>
-                <span>
-                  {entry.coreName}
-                  {entry.variantName ? ` | ${entry.variantName}` : ""}
-                </span>
+                <span>{entry.trickName || entry.coreName || "No Attempt"}</span>
                 <span className="sessionPanel__attemptMeta">
                   {entry.type} | {entry.pieceName}
                   {entry.pieceCoordinate ? ` (${entry.pieceCoordinate})` : ""}
                 </span>
-                <span className="sessionPanel__scoreTag">D:{entry.difficultyScore ?? 0}</span>
-                <span className="sessionPanel__scoreTag">S:{entry.successScore ?? 0}</span>
+                <span className="sessionPanel__scoreTag">Dif:{entry.difficultyScore ?? 0}</span>
+                <span className="sessionPanel__scoreTag">Suc:{entry.successScore ?? 0}</span>
                 <span className="sessionPanel__scoreTag">ST:{entry.steezeScore ?? 1}</span>
+                <span className="sessionPanel__scoreTag">Pts:{entry.trickPoints ?? 0}</span>
                 <span className={`sessionPanel__resultTag sessionPanel__resultTag--${entry.landed ? "landed" : "bailed"}`}>
                   {entry.status}
                   {entry.landed ? ` (${entry.control})` : ""}

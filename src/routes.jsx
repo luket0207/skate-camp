@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import Home from "./game/home/home";
 import Info from "./game/info/info";
-import Grid from "./game/grid/grid";
+import Skatepark from "./game/grid/skatepark";
 import Skaters from "./game/skaters/skaters";
 import { useGame } from "./engine/gameContext/gameContext";
 
@@ -33,7 +33,8 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/info" element={<Info />} />
-      <Route path="/grid" element={<RequireGameContext element={<Grid />} />} />
+      <Route path="/skatepark" element={<RequireGameContext element={<Skatepark />} />} />
+      <Route path="/grid" element={<Navigate to="/skatepark" replace />} />
       <Route path="/skaters" element={<RequireGameContext element={<Skaters />} />} />
 
       <Route path="/404" element={<NotFound />} />

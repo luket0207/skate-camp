@@ -9,7 +9,7 @@ const Home = () => {
 
   const onStartGame = () => {
     setGameValue("meta.hasActiveGame", true);
-    navigate("/grid");
+    navigate("/skatepark");
   };
 
   return (

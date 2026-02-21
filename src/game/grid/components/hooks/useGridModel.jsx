@@ -29,6 +29,33 @@ const SESSION_CLOCK_DEFAULT = {
   ticksRemaining: SESSION_TICKS,
   currentTick: 0,
 };
+const TRICK_POINTS_MATRIX = {
+  stall: {
+    1: [10, 15, 24, 37, 57, 88, 136, 210, 324, 400, 500],
+    2: [20, 31, 48, 74, 114, 176, 271, 419, 647, 800, 1000],
+    3: [40, 62, 95, 147, 228, 352, 543, 838, 1295, 1600, 2000],
+  },
+  grind: {
+    1: [100, 129, 167, 215, 278, 359, 464, 599, 774, 900, 1000],
+    2: [250, 323, 417, 539, 696, 898, 1160, 1499, 1936, 2250, 2500],
+    3: [500, 646, 834, 1077, 1391, 1797, 2321, 2997, 3871, 4500, 5000],
+  },
+  tech: {
+    1: [100, 129, 167, 215, 278, 359, 464, 599, 774, 900, 1000],
+    2: [250, 323, 417, 539, 696, 898, 1160, 1499, 1936, 2250, 2500],
+    3: [500, 646, 834, 1077, 1391, 1797, 2321, 2997, 3871, 4500, 5000],
+  },
+  spin: {
+    1: [100, 129, 167, 215, 278, 359, 464, 599, 774, 900, 1000],
+    2: [500, 598, 715, 855, 1022, 1223, 1462, 1748, 2091, 2300, 2500],
+    3: [1000, 1196, 1430, 1710, 2045, 2445, 2924, 3497, 4181, 4600, 5000],
+  },
+  bigAir: {
+    1: [1000, 1196, 1430, 1710, 2045, 2445, 2924, 3497, 4181, 4600, 5000],
+    2: [2500, 2825, 3191, 3606, 4074, 4603, 5200, 5875, 6638, 7300, 8000],
+    3: [5000, 5400, 5833, 6300, 6804, 7349, 7937, 8572, 9259, 9600, 10000],
+  },
+};
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const toNumeric = (value) => {
@@ -62,63 +89,93 @@ const getRouteSpeedAfterPieces = (pieces) => {
 };
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-const getDifficultyPercent = (pieceDifficulty, coreLevel, variantLevel) =>
-  Math.round((((pieceDifficulty + (coreLevel * 2) + variantLevel) * 10) / 260) * 100);
+const getSkillLevel = (skater) => clamp(Number(skater?.skillLevel || 1), 1, 100);
 
-const getBaseSuccess = (trickTypeRating, attemptNumber) => {
-  const rating = clamp(trickTypeRating, 1, 100) / 100;
-  const attempt = clamp(attemptNumber, 1, 3);
+const getTrickChanceValues = ({ coreLevel, variantLevel, pieceDifficulty, skillLevel, switchDifficultyIncreasePercent = 0 }) => {
+  const baseTrickDifficulty = Math.max(0, (Math.max(1, Number(coreLevel) || 1) * 5) + Math.max(0, Number(variantLevel) || 0));
+  const pieceDifficultyValue = Math.max(0, (Math.max(1, Number(pieceDifficulty) || 1) - 1) * 9);
+  const trickDifficultyBase = baseTrickDifficulty + pieceDifficultyValue;
+  const trickDifficulty = Math.round(trickDifficultyBase * (1 + (Math.max(0, Number(switchDifficultyIncreasePercent) || 0) / 100)));
+  const trickChance = Math.max(0, trickDifficulty - Math.max(1, Number(skillLevel) || 1));
 
-  // Lower baseline and steeper skill curve to reduce over-landing.
-  const skillComponent = 35 * Math.pow(rating, 0.75);
-  const attemptBonus = (attempt - 1) * 8;
-  const rng = randomIntInclusive(-6, 6);
-
-  return clamp(Math.round(skillComponent + attemptBonus + rng), 1, 85);
+  return {
+      baseTrickDifficulty,
+      pieceDifficultyValue,
+      trickDifficultyBase,
+      trickDifficulty,
+      trickChance,
+    };
 };
 
-const applyInstructorBoost = (baseSuccess, trickTypeRating, instructorTrickRating) => {
-  const cappedBase = clamp(baseSuccess, 1, 100);
-  const itr = clamp(instructorTrickRating || 0, 0, 10);
-  if (itr <= 0) return cappedBase;
-  const lowSkillFactor = Math.pow((100 - clamp(trickTypeRating, 1, 100)) / 100, 1.5);
-  const maxBoost = Math.max(0, 90 - cappedBase);
-  const boost = Math.round(maxBoost * lowSkillFactor * (itr / 10) * 1.2);
-  return clamp(cappedBase + boost, 1, 90);
+const getLandChanceFromTrickChance = (trickChance) => {
+  let chance = 1;
+  if (trickChance <= 0) chance = 95;
+  else if (trickChance <= 5) chance = 90;
+  else if (trickChance <= 10) chance = 70;
+  else if (trickChance <= 15) chance = 50;
+  else if (trickChance <= 25) chance = 30;
+  else if (trickChance <= 50) chance = 10;
+  return Math.max(0, chance - 5);
 };
 
-const getResultBand = (score) => {
-  if (score > 30) return { landChance: 98, minControl: 80, maxControl: 100 };
-  if (score > 20) return { landChance: 85, minControl: 60, maxControl: 90 };
-  if (score > 10) return { landChance: 70, minControl: 40, maxControl: 80 };
-  if (score > 0) return { landChance: 60, minControl: 30, maxControl: 70 };
-  if (score > -10) return { landChance: 30, minControl: 20, maxControl: 30 };
-  if (score > -20) return { landChance: 5, minControl: 1, maxControl: 20 };
-  return { landChance: 0, minControl: 0, maxControl: 0 };
+const applyPieceDifficultyBailPenalty = (landChance, pieceDifficulty) => {
+  const pd = Math.max(1, Number(pieceDifficulty) || 1);
+  // Higher PD directly reduces land chance further.
+  const penalty = (pd - 1) * 2;
+  return Math.max(0, Math.round(landChance - penalty));
 };
 
-const getEffectiveTrickTypeRating = (skater, type) => {
-  const raw = Number(skater?.[type] || 0);
-  if (!Number.isFinite(raw)) return 1;
-  const safe = Math.max(1, raw);
-  if (safe <= 10) return Math.min(100, safe * 10);
-  return Math.min(100, safe);
+const getControlRangeForLandChance = (landChance) => {
+  if (landChance >= 95) return { min: 80, max: 100 };
+  if (landChance >= 90) return { min: 70, max: 95 };
+  if (landChance >= 70) return { min: 50, max: 85 };
+  if (landChance >= 50) return { min: 35, max: 75 };
+  if (landChance >= 30) return { min: 20, max: 55 };
+  if (landChance >= 10) return { min: 10, max: 40 };
+  return { min: 1, max: 25 };
 };
 
-const getTrickSteezeScore = ({ skaterSteezeRating, pieceDifficulty, control }) => {
-  const sr = clamp(Number(skaterSteezeRating) || 1, 1, 10) / 10;
-  const pd = clamp(Number(pieceDifficulty) || 1, 1, 10) / 10;
-  const c = clamp(Number(control) || 0, 0, 100) / 100;
+const getBasePointsForTrick = (type, coreLevel, variantLevel) => {
+  const typeKey = String(type || "").trim();
+  const core = Math.max(1, Math.min(3, Number(coreLevel) || 1));
+  const variant = Math.max(0, Math.min(10, Number(variantLevel) || 0));
+  const row = TRICK_POINTS_MATRIX[typeKey]?.[core];
+  if (!Array.isArray(row)) return 0;
+  return Number(row[variant] || 0);
+};
 
-  const styleBase = ((sr * 3) + pd) / 4;
-  const controlMultiplier = Math.pow(c, 1.2);
-  const raw = styleBase * controlMultiplier * 100;
+const getTrickPoints = ({ basePoints, pieceDifficulty, steezeScore, landed, isRepeatInSession, isSwitch }) => {
+  if (!landed || basePoints <= 0) return 0;
+  const pd = Math.max(0, Number(pieceDifficulty) || 0);
+  const st = Math.max(0, Number(steezeScore) || 0);
+  const baseScore = basePoints * ((pd / 2) + (st / 10));
+  let multiplier = 1;
+  if (isRepeatInSession) multiplier *= 0.8;
+  if (isSwitch) multiplier *= 1.2;
+  return Math.round(baseScore * multiplier);
+};
 
-  const variancePercent = randomIntInclusive(0, 10) / 100;
-  const varianceDirection = Math.random() < 0.5 ? -1 : 1;
-  const withVariance = raw + (raw * variancePercent * varianceDirection);
+const getTrickSteezeScore = ({ skaterSteezeRating, control }) => {
+  const base = clamp(Number(skaterSteezeRating) || 1, 1, 10) * 10;
+  const safeControl = clamp(Number(control) || 0, 0, 100);
 
-  return clamp(Math.round(withVariance), 1, 100);
+  let score = base;
+  if (safeControl >= 90) {
+    score += (safeControl - 90) * 1.5;
+  } else if (safeControl >= 80) {
+    score -= (90 - safeControl) * 0.4;
+  } else if (safeControl >= 70) {
+    score -= 4 + ((80 - safeControl) * 1.2);
+  } else if (safeControl >= 50) {
+    score -= 16 + ((70 - safeControl) * 1.8);
+  } else {
+    score -= 52 + ((50 - safeControl) * 2.2);
+  }
+
+  // Added extra variance so outcomes have a little more spread.
+  score += randomIntInclusive(-7, 7);
+
+  return clamp(Math.round(score), 1, 100);
 };
 
 const parseCoordinate = (coordinate) => {
@@ -236,6 +293,7 @@ export const useGridModel = () => {
     recruitedSkaterIds: [],
     retryQueue: {},
     instructorTrickRating: 0,
+    activeRunTricks: {},
     clock: SESSION_CLOCK_DEFAULT,
   });
 
@@ -431,19 +489,24 @@ export const useGridModel = () => {
     () => startingTargets.reduce((sum, target) => sum + target.capacity, 0),
     [startingTargets]
   );
+  const hasAnySkateparkPiece = useMemo(
+    () => placedStandalone.length > 0 || committedRoutes.length > 0,
+    [committedRoutes.length, placedStandalone.length]
+  );
 
   const canStartBeginnerSession = useMemo(() => {
+    if (!hasAnySkateparkPiece) return false;
     if (startingSpotsCapacity < 2) return false;
     if (!sessionState.isActive) {
       if (playerSkaterPool.length === 0) return true;
       return startingSpotsCapacity > playerSkaterPool.length;
     }
     return false;
-  }, [playerSkaterPool.length, sessionState.isActive, startingSpotsCapacity]);
+  }, [hasAnySkateparkPiece, playerSkaterPool.length, sessionState.isActive, startingSpotsCapacity]);
 
   const canStartNormalSession = useMemo(
-    () => !sessionState.isActive && playerSkaterPool.length > 0,
-    [playerSkaterPool.length, sessionState.isActive]
+    () => hasAnySkateparkPiece && !sessionState.isActive && playerSkaterPool.length > 0,
+    [hasAnySkateparkPiece, playerSkaterPool.length, sessionState.isActive]
   );
 
   const skaterById = useMemo(() => {
@@ -463,11 +526,12 @@ export const useGridModel = () => {
         id: skater.id,
         initials: skater.initials,
         color: skater.color,
+        trickName: sessionState.activeRunTricks?.[skater.id] || null,
       });
       markersByTile.set(key, list);
     });
     return markersByTile;
-  }, [sessionState.skaterPositions, skaterById]);
+  }, [sessionState.activeRunTricks, sessionState.skaterPositions, skaterById]);
 
   const occupancy = useMemo(() => {
     const map = new Map();
@@ -891,6 +955,7 @@ export const useGridModel = () => {
         recruitedSkaterIds: [],
         retryQueue: {},
         instructorTrickRating: 0,
+        activeRunTricks: {},
         clock: SESSION_CLOCK_DEFAULT,
       });
 
@@ -901,6 +966,7 @@ export const useGridModel = () => {
 
   const onStartBeginnerSession = useCallback(() => {
     if (editingRoute) return warning("Commit or cancel the current route first.");
+    if (!hasAnySkateparkPiece) return warning("Place at least one piece in the skatepark before starting a session.");
     if (!canStartBeginnerSession) return warning("Beginner session is not available right now.");
 
     openModal({
@@ -921,6 +987,7 @@ export const useGridModel = () => {
     canStartBeginnerSession,
     closeModal,
     editingRoute,
+    hasAnySkateparkPiece,
     openModal,
     startSessionWithSkaters,
     startingSpotsCapacity,
@@ -929,6 +996,7 @@ export const useGridModel = () => {
 
   const onStartNormalSession = useCallback(() => {
     if (editingRoute) return warning("Commit or cancel the current route first.");
+    if (!hasAnySkateparkPiece) return warning("Place at least one piece in the skatepark before starting a session.");
     if (!canStartNormalSession) return warning("Add skaters to your pool before starting a normal session.");
     if (startingSpotsCapacity < 1) return warning("No starting spots are available in this skatepark.");
 
@@ -939,6 +1007,7 @@ export const useGridModel = () => {
   }, [
     canStartNormalSession,
     editingRoute,
+    hasAnySkateparkPiece,
     playerSkaterPool,
     startSessionWithSkaters,
     startingSpotsCapacity,
@@ -955,6 +1024,7 @@ export const useGridModel = () => {
       assignments: {},
       skaterPositions: {},
       retryQueue: {},
+      activeRunTricks: {},
     }));
   }, [sessionState.isActive, warning]);
 
@@ -1037,6 +1107,7 @@ export const useGridModel = () => {
       recruitedSkaterIds: [],
       retryQueue: {},
       instructorTrickRating: 0,
+      activeRunTricks: {},
       clock: SESSION_CLOCK_DEFAULT,
     });
     success("Session ended.");
@@ -1124,6 +1195,7 @@ export const useGridModel = () => {
       currentTick: nextTick,
       assignments,
       skaterPositions: startPositions,
+      activeRunTricks: {},
       clock: {
         totalTicks: SESSION_TICKS,
         currentTick: nextTick,
@@ -1185,6 +1257,8 @@ export const useGridModel = () => {
             pieceDifficulty: attempt?.pieceDifficulty || 0,
             comboKey: attempt?.comboKey || null,
             attemptNumber: attempt?.attemptNumber || 1,
+            isSwitch: Boolean(attempt?.isSwitch),
+            switchDifficultyIncreasePercent: Number(attempt?.switchDifficultyIncreasePercent || 0),
             landed: false,
             control: 0,
             landChance: 0,
@@ -1192,6 +1266,8 @@ export const useGridModel = () => {
             successScore: 0,
             steezeScore: 1,
             resultScore: 0,
+            basePoints: 0,
+            trickPoints: 0,
             status: "No Attempt",
             willRetry: false,
             isRepeatInSession: false,
@@ -1199,26 +1275,22 @@ export const useGridModel = () => {
           return;
         }
 
-        const trickTypeRating = getEffectiveTrickTypeRating(skater, attempt.type);
-        const difficultyScore = clamp(
-          getDifficultyPercent(attempt.pieceDifficulty, attempt.coreLevel, attempt.variantLevel),
-          1,
-          100
-        );
-        const baseSuccess = getBaseSuccess(trickTypeRating, attempt.attemptNumber || 1);
-        const successScore = clamp(
-          applyInstructorBoost(
-            baseSuccess,
-            trickTypeRating,
-            sessionState.sessionType === "lesson" ? (sessionState.instructorTrickRating || 0) : 0
-          ),
-          1,
-          100
-        );
-        const resultScore = successScore - difficultyScore;
-        const band = getResultBand(resultScore);
-        const landed = band.landChance > 0 && randomIntInclusive(1, 100) <= band.landChance;
-        const control = landed ? randomIntInclusive(band.minControl, band.maxControl) : 0;
+        const skillLevel = getSkillLevel(skater);
+        const {
+          trickDifficulty,
+          trickChance,
+        } = getTrickChanceValues({
+          coreLevel: attempt.coreLevel,
+          variantLevel: attempt.variantLevel,
+          pieceDifficulty: attempt.pieceDifficulty,
+          skillLevel,
+          switchDifficultyIncreasePercent: attempt.switchDifficultyIncreasePercent || 0,
+        });
+        const landChanceBase = getLandChanceFromTrickChance(trickChance);
+        const landChance = applyPieceDifficultyBailPenalty(landChanceBase, attempt.pieceDifficulty);
+        const controlRange = getControlRangeForLandChance(landChance);
+        const landed = randomIntInclusive(1, 100) <= landChance;
+        const control = landed ? randomIntInclusive(controlRange.min, controlRange.max) : 0;
         const steezeScore = landed
           ? getTrickSteezeScore({
               skaterSteezeRating: skater.steezeRating,
@@ -1226,11 +1298,19 @@ export const useGridModel = () => {
               control,
             })
           : 1;
-
         const landedBefore = [...sessionState.trickAttempts, ...tickAttemptLog].some(
           (entry) => entry.skaterId === skater.id && entry.landed && entry.comboKey && entry.comboKey === attempt.comboKey
         );
         const isRepeatInSession = landed && landedBefore;
+        const basePoints = getBasePointsForTrick(attempt.type, attempt.coreLevel, attempt.variantLevel);
+        const trickPoints = getTrickPoints({
+          basePoints,
+          pieceDifficulty: attempt.pieceDifficulty,
+          steezeScore,
+          landed,
+          isRepeatInSession,
+          isSwitch: Boolean(attempt.isSwitch),
+        });
 
         const canRetry = !landed && (attempt.attemptNumber || 1) < 3;
         const willRetry = canRetry && randomIntInclusive(1, 100) <= Math.max(1, Number(skater.determination || 1));
@@ -1265,20 +1345,47 @@ export const useGridModel = () => {
           pieceDifficulty: attempt.pieceDifficulty,
           comboKey: attempt.comboKey,
           attemptNumber: attempt.attemptNumber || 1,
-          trickTypeRating,
+          isSwitch: Boolean(attempt.isSwitch),
+          switchDifficultyIncreasePercent: Number(attempt.switchDifficultyIncreasePercent || 0),
+          trickTypeRating: skillLevel,
           landed,
           control,
-          landChance: band.landChance,
-          difficultyScore,
-          successScore,
+          landChance,
+          difficultyScore: trickDifficulty,
+          successScore: skillLevel,
           steezeScore,
-          resultScore,
+          resultScore: trickChance,
+          basePoints,
+          trickPoints,
           status: landed ? "Landed" : "Bailed",
           willRetry,
           isRepeatInSession,
         });
       });
+
+      const activeTrickLabel = attempts.find((attempt) => attempt?.type && attempt?.trickName)?.trickName || null;
+      if (activeTrickLabel) {
+        setSessionState((prev) => ({
+          ...prev,
+          activeRunTricks: {
+            ...prev.activeRunTricks,
+            [skater.id]: activeTrickLabel,
+          },
+        }));
+      }
+
       await animateSkaterOnTarget(skater.id, target);
+
+      if (activeTrickLabel) {
+        setSessionState((prev) => {
+          const nextActiveRunTricks = { ...prev.activeRunTricks };
+          delete nextActiveRunTricks[skater.id];
+          return {
+            ...prev,
+            activeRunTricks: nextActiveRunTricks,
+          };
+        });
+      }
     }
 
     const elapsedMs = Date.now() - tickStartMs;
@@ -1296,6 +1403,7 @@ export const useGridModel = () => {
       trickAttempts: [...prev.trickAttempts, ...tickAttemptLog],
       currentTickTrickAttempts: tickAttemptLog,
       retryQueue: sessionEnded ? {} : retryQueue,
+      activeRunTricks: {},
     }));
 
     if (sessionEnded) success("Session ended after 20 ticks.");

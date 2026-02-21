@@ -2,24 +2,32 @@ import React, { useMemo, useState } from "react";
 import Button, { BUTTON_VARIANT } from "../../../engine/ui/button/button";
 import { getTrickTreeForSport, getNodeAvailability, purchaseNode } from "../trickLibraryUtils";
 
-const isUnlocked = (library, id) => library.some((entry) => entry.id === id);
-
 const TrickTreeModalContent = ({ skater, onCommit }) => {
-  const initialLibrary = useMemo(() => skater.trickLibrary || [], [skater.trickLibrary]);
+  const initialLibrary = useMemo(
+    () => (Array.isArray(skater.trickLibrary) ? skater.trickLibrary : []),
+    [skater.trickLibrary]
+  );
   const [draftLibrary, setDraftLibrary] = useState(initialLibrary);
-
   const tree = useMemo(() => getTrickTreeForSport(skater.sport), [skater.sport]);
 
-  const onUnlock = (type, coreNode, variantNode = null, upgradeNode = null, upgradeIndex = -1) => {
+  const onUnlockCore = (type, coreNode) => {
     const result = purchaseNode({
       trickLibrary: draftLibrary,
       type,
       coreNode,
-      variantNode,
-      upgradeNode,
-      upgradeIndex,
+      sport: skater.sport,
     });
+    if (result.success) setDraftLibrary(result.trickLibrary);
+  };
 
+  const onUnlockModifier = (type, coreNode, modifierNode) => {
+    const result = purchaseNode({
+      trickLibrary: draftLibrary,
+      type,
+      coreNode,
+      modifierNode,
+      sport: skater.sport,
+    });
     if (result.success) setDraftLibrary(result.trickLibrary);
   };
 
@@ -30,69 +38,54 @@ const TrickTreeModalContent = ({ skater, onCommit }) => {
           <h4 style={{ margin: 0 }}>{type.toUpperCase()}</h4>
 
           {cores.map((coreNode) => {
-            const coreState = getNodeAvailability(draftLibrary, type, coreNode);
+            const coreState = getNodeAvailability(draftLibrary, type, coreNode, null, skater.sport);
             return (
               <div key={`${type}-${coreNode.core}`} style={{ border: "1px solid rgba(0,0,0,0.2)", borderRadius: "8px", padding: "0.5rem" }}>
                 <div style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap" }}>
                   <strong>
-                    Core: {coreNode.core} (L{coreNode.level})
+                    Core: {coreNode.core} (L{coreNode.level} / Cost {coreNode.cost})
                   </strong>
                   <Button
                     variant={BUTTON_VARIANT.PRIMARY}
-                    onClick={() => onUnlock(type, coreNode)}
-                    disabled={!coreState.available || isUnlocked(draftLibrary, `core|${type}|${coreNode.core}`)}
+                    onClick={() => onUnlockCore(type, coreNode)}
+                    disabled={!coreState.available}
                   >
                     Unlock Core
                   </Button>
+                  <span style={{ fontSize: "0.75rem", opacity: 0.75 }}>{coreState.reason}</span>
                 </div>
 
                 <div style={{ display: "grid", gap: "0.35rem", marginTop: "0.5rem" }}>
-                  {coreNode.variants.map((variantNode) => {
-                    const variantState = getNodeAvailability(draftLibrary, type, coreNode, variantNode);
+                  {(coreNode.modifiers || []).map((modifierNode) => {
+                    const modifierState = getNodeAvailability(
+                      draftLibrary,
+                      type,
+                      coreNode,
+                      modifierNode,
+                      skater.sport
+                    );
                     return (
-                      <div key={`${type}-${coreNode.core}-${variantNode.name}`} style={{ paddingLeft: "0.5rem" }}>
-                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-                          <span>
-                            Variant: {variantNode.name} (L{variantNode.level})
+                      <div
+                        key={`${type}-${coreNode.core}-${modifierNode.parentVariant}-${modifierNode.name}`}
+                        style={{ display: "flex", gap: "0.5rem", alignItems: "center", paddingLeft: "0.7rem", flexWrap: "wrap" }}
+                      >
+                        <span>
+                          {modifierNode.kind === "upgrade" ? "Upgrade" : "Variant"}: {modifierNode.name}
+                          {" "}({modifierNode.placement} / Cost {modifierNode.cost})
+                        </span>
+                        {modifierNode.lockedBy && (
+                          <span style={{ fontSize: "0.75rem", opacity: 0.75 }}>
+                            Locked by: {modifierNode.lockedBy.core}
                           </span>
-                          <Button
-                            variant={BUTTON_VARIANT.SECONDARY}
-                            onClick={() => onUnlock(type, coreNode, variantNode)}
-                            disabled={!variantState.available}
-                          >
-                            Unlock Variant
-                          </Button>
-                          <span style={{ fontSize: "0.75rem", opacity: 0.75 }}>{variantState.reason}</span>
-                        </div>
-
-                        {variantNode.upgrades.map((upgradeNode, upgradeIndex) => {
-                          const upgradeState = getNodeAvailability(
-                            draftLibrary,
-                            type,
-                            coreNode,
-                            variantNode,
-                            upgradeNode,
-                            upgradeIndex
-                          );
-                          return (
-                            <div
-                              key={`${type}-${coreNode.core}-${variantNode.name}-${upgradeNode.name}-${upgradeIndex}`}
-                              style={{ display: "flex", gap: "0.5rem", alignItems: "center", paddingLeft: "0.9rem", marginTop: "0.25rem", flexWrap: "wrap" }}
-                            >
-                              <span>
-                                Upgrade: {upgradeNode.name} (L{upgradeNode.level})
-                              </span>
-                              <Button
-                                variant={BUTTON_VARIANT.TERTIARY}
-                                onClick={() => onUnlock(type, coreNode, variantNode, upgradeNode, upgradeIndex)}
-                                disabled={!upgradeState.available}
-                              >
-                                Unlock Upgrade
-                              </Button>
-                              <span style={{ fontSize: "0.75rem", opacity: 0.75 }}>{upgradeState.reason}</span>
-                            </div>
-                          );
-                        })}
+                        )}
+                        <Button
+                          variant={BUTTON_VARIANT.SECONDARY}
+                          onClick={() => onUnlockModifier(type, coreNode, modifierNode)}
+                          disabled={!modifierState.available}
+                        >
+                          Unlock
+                        </Button>
+                        <span style={{ fontSize: "0.75rem", opacity: 0.75 }}>{modifierState.reason}</span>
                       </div>
                     );
                   })}

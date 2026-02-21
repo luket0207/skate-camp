@@ -9,6 +9,12 @@ const clampToTen = (value) => {
   return Math.max(0, Math.min(10, parsed));
 };
 const shortType = (type) => (type === "bigAir" ? "Air" : type.charAt(0).toUpperCase() + type.slice(1, 3));
+const getSkateboardDifficulty = (piece, type) => {
+  const data = piece.difficulty?.skateboarder || {};
+  if (type === "tech") return data.tech ?? data.flip ?? null;
+  if (type === "spin") return data.spin ?? data.grab ?? null;
+  return data[type] ?? null;
+};
 
 const DifficultyMeter = ({ label, value }) => {
   const safe = clampToTen(value);
@@ -128,8 +134,8 @@ const PieceCard = ({ piece, isDragging, dragInvalidReason, onDragStart, onDragEn
       </div>
       <div className="pieceItem__difficultyBlock">
         <div className="pieceItem__difficultyTitle">SB</div>
-        {["stall", "grind", "flip", "grab", "bigAir"].map((type) => (
-          <DifficultyMeter key={`sb-${type}`} label={shortType(type)} value={piece.difficulty?.skateboarder?.[type]} />
+        {["stall", "grind", "tech", "spin", "bigAir"].map((type) => (
+          <DifficultyMeter key={`sb-${type}`} label={shortType(type)} value={getSkateboardDifficulty(piece, type)} />
         ))}
       </div>
     </div>
