@@ -129,7 +129,7 @@ const standalonePieces = [
     endPiece: false,
     middlePiece: false,
     standalonePiece: true,
-    size: { rows: 3, cols: 2 },
+    size: { rows: 2, cols: 3 },
     marker: "MRP",
     color: "#0c4a6e",
     cost: 600,

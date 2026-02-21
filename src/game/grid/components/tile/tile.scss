@@ -6,27 +6,38 @@
   height: var(--tile-size);
   min-width: var(--tile-size);
   min-height: var(--tile-size);
-  border: 1px solid rgba(0, 0, 0, 0.28);
-  border-radius: 6px;
-  background: #ffffff;
-  font-size: 0.58rem;
-  font-weight: 700;
-  color: $darkText;
+  border: none;
+  border-radius: 0;
+  background: #aaaaaa;
+  font-size: 0;
+  color: transparent;
   cursor: pointer;
   padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  transition: background-color 0.3s ease;
 }
 
 .gridTile--editingRoute {
-  outline: 2px dashed $tertiaryBackground;
+  outline: 2px dashed rgba(255, 255, 255, 0.65);
+  outline-offset: -1px;
+}
+
+.gridTile__pieceImage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.gridTile--dropPreview {
+  background: #6b7280;
 }
 
 .gridTile__skaters {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  z-index: 2;
 }
 
 .gridTile__skater {

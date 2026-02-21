@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./piecePalette.scss";
+import { getPieceImageUrl } from "../hooks/pieceImageUtils";
 
 const renderRouteType = (routeType) => routeType.join(", ");
 const asDisplay = (value) => (value === null || value === undefined ? "N/A" : value);
@@ -38,28 +39,40 @@ const DifficultyMeter = ({ label, value }) => {
   );
 };
 
-const createStandaloneDragPreview = (piece, tileSizePx) => {
-  const gapPx = 4;
+const createDragPreview = (piece, tileSizePx, imageUrl) => {
+  const rows = Math.max(1, Number(piece?.size?.rows) || 1);
+  const cols = Math.max(1, Number(piece?.size?.cols) || 1);
+  const gapPx = 3;
   const preview = document.createElement("div");
   preview.style.position = "fixed";
   preview.style.left = "-9999px";
   preview.style.top = "-9999px";
   preview.style.pointerEvents = "none";
   preview.style.display = "grid";
-  preview.style.gridTemplateColumns = `repeat(${piece.size.cols}, ${tileSizePx}px)`;
+  preview.style.gridTemplateColumns = `repeat(${cols}, ${tileSizePx}px)`;
   preview.style.gap = `${gapPx}px`;
-  preview.style.padding = "2px";
-  preview.style.background = "rgba(0,0,0,0.05)";
-  preview.style.borderRadius = "8px";
+  preview.style.padding = "0";
+  preview.style.background = "transparent";
+  preview.style.borderRadius = "10px";
+  preview.style.opacity = "0.82";
 
-  const tileCount = piece.size.rows * piece.size.cols;
+  const tileCount = rows * cols;
   for (let i = 0; i < tileCount; i++) {
+    const row = Math.floor(i / cols);
+    const col = i % cols;
     const tile = document.createElement("div");
     tile.style.width = `${tileSizePx}px`;
     tile.style.height = `${tileSizePx}px`;
-    tile.style.background = piece.color;
-    tile.style.border = "1px solid rgba(0,0,0,0.28)";
-    tile.style.borderRadius = "6px";
+    tile.style.backgroundColor = piece.color || "#6b7280";
+    if (imageUrl) {
+      tile.style.backgroundImage = `url("${imageUrl}")`;
+      tile.style.backgroundRepeat = "no-repeat";
+      tile.style.backgroundSize =
+        `${(cols * tileSizePx) + ((cols - 1) * gapPx)}px ${(rows * tileSizePx) + ((rows - 1) * gapPx)}px`;
+      tile.style.backgroundPosition = `${-(col * (tileSizePx + gapPx))}px ${-(row * (tileSizePx + gapPx))}px`;
+    }
+    tile.style.border = "1px solid rgba(255,255,255,0.65)";
+    tile.style.borderRadius = "8px";
     tile.style.boxSizing = "border-box";
     preview.appendChild(tile);
   }
@@ -70,15 +83,8 @@ const createStandaloneDragPreview = (piece, tileSizePx) => {
 const onPieceDragStart = (event, piece) => {
   event.dataTransfer.setData("application/json", JSON.stringify({ pieceId: piece.id }));
 
-  const isMultiTileStandalone =
-    piece.type === "Standalone" &&
-    piece.size &&
-    piece.size.rows * piece.size.cols > 1;
-
-  if (!isMultiTileStandalone) return;
-
   const tileSizePx = Math.max(1, Math.round(event.currentTarget.getBoundingClientRect().width || 40));
-  const preview = createStandaloneDragPreview(piece, tileSizePx);
+  const preview = createDragPreview(piece, tileSizePx, getPieceImageUrl(piece));
   document.body.appendChild(preview);
 
   event.dataTransfer.setDragImage(preview, tileSizePx / 2, tileSizePx / 2);
@@ -91,11 +97,13 @@ const onPieceDragStart = (event, piece) => {
   event.currentTarget.addEventListener("dragend", cleanup);
 };
 
-const PieceCard = ({ piece, isDragging, dragInvalidReason, onDragStart, onDragEnd }) => (
-  <div className="pieceItem">
+const PieceCard = ({ piece, isDragging, dragInvalidReason, onDragStart, onDragEnd }) => {
+  const pieceImageUrl = getPieceImageUrl(piece);
+  return (
+    <div className="pieceItem">
     <button
       type="button"
-      className={`pieceCard${isDragging && dragInvalidReason ? " pieceCard--invalid" : ""}`}
+      className={`pieceCard${isDragging ? " pieceCard--dragging" : ""}${isDragging && dragInvalidReason ? " pieceCard--invalid" : ""}`}
       title={piece.name}
       draggable
       onDragStart={(event) => {
@@ -103,9 +111,11 @@ const PieceCard = ({ piece, isDragging, dragInvalidReason, onDragStart, onDragEn
         onDragStart(piece.id);
       }}
       onDragEnd={onDragEnd}
-      style={{ backgroundColor: piece.color }}
+      style={{
+        backgroundColor: piece.color,
+        backgroundImage: pieceImageUrl ? `url("${pieceImageUrl}")` : undefined,
+      }}
     >
-      {piece.marker}
     </button>
 
     <div className="pieceItem__meta">
@@ -141,7 +151,8 @@ const PieceCard = ({ piece, isDragging, dragInvalidReason, onDragStart, onDragEn
     </div>
     {isDragging && dragInvalidReason && <div className="pieceItem__error">{dragInvalidReason}</div>}
   </div>
-);
+  );
+};
 
 const PiecePalette = ({
   standalonePieces,

@@ -24,9 +24,10 @@ const Skatepark = () => {
               onCancelRoute={model.onCancelRoute}
               onCommitRoute={model.onCommitRoute}
               onRemoveLastRoutePiece={model.onRemoveLastRoutePiece}
-              onTileDrop={model.onTileDrop}
-              onTileClick={model.onTileClick}
-            />
+            onTileDrop={model.onTileDrop}
+            onTileClick={model.onTileClick}
+            getDropPreviewTiles={model.getDropPreviewTiles}
+          />
           </div>
 
           {model.gridMode === "edit" && (

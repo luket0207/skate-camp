@@ -1,13 +1,12 @@
 @use "../../assets/scss/ui/import" as *;
 
 .skatepark {
-  --tile-size: 40px;
-  --tile-gap: 4px;
+  --tile-size: 55px;
+  --tile-gap: 12px;
   --max-grid-size: 10;
   --max-grid-px: calc(
     (var(--tile-size) * var(--max-grid-size)) +
-    (var(--tile-gap) * (var(--max-grid-size) - 1)) +
-    1.3rem + 4px
+    (var(--tile-gap) * (var(--max-grid-size) - 1))
   );
 
   min-height: 100vh;

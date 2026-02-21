@@ -1,14 +1,15 @@
 @use "../../../../assets/scss/ui/import" as *;
 
 .gridBoard {
-  --board-padding: 0.65rem;
+  --board-padding: 20px;
 
   position: relative;
   display: grid;
   gap: var(--tile-gap);
   padding: var(--board-padding);
-  background: $primaryBackground;
-  border-radius: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.24);
+  background: #aaaaaa;
+  border-radius: 0;
+  border: none;
   width: max-content;
+  border-radius: 8px;
 }

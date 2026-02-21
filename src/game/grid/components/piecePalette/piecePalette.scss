@@ -76,19 +76,28 @@
   height: var(--tile-size);
   min-width: var(--tile-size);
   min-height: var(--tile-size);
-  border: 1px solid rgba(0, 0, 0, 0.28);
-  border-radius: 6px;
+  border: none;
+  border-radius: 0;
   text-align: center;
   background: #f8fafc;
   cursor: grab;
-  color: $lightText;
+  color: transparent;
   padding: 0;
-  font-size: 0.5rem;
+  font-size: 0;
   font-weight: 700;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.pieceCard--dragging {
+  opacity: 0.82;
+  border-radius: 10px;
+  border: 2px solid rgba(0, 0, 0, 0.55);
 }
 
 .pieceCard--invalid {
-  background: #ef4444 !important;
+  background-color: #ef4444 !important;
   border-color: #991b1b;
 }
 

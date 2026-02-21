@@ -70,7 +70,7 @@ const getSkaterRatingForType = (skater, type) => {
   return Math.max(0, Number(ratings[type] || 0));
 };
 const getSkillLevel = (skater) => Math.max(1, Math.min(100, Number(skater?.skillLevel || 1)));
-const canAttemptBySkill = (skillLevel, pieceDifficulty) => skillLevel >= ((pieceDifficulty - 2) * 10);
+const canAttemptBySkill = (skillLevel, pieceDifficulty) => skillLevel >= ((pieceDifficulty - 3) * 10);
 
 const buildTypeWeights = (types, skater) => {
   if (types.length === 1) return [{ type: types[0], weight: 1 }];

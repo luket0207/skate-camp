@@ -20,6 +20,7 @@ import {
   toCoordinate,
 } from "./gridUtils";
 import { buildTrickAttemptsForRun } from "./sessionTrickUtils";
+import { getOppositeDirection, getPieceImageUrl, getRotationFromDirection } from "./pieceImageUtils";
 
 const SESSION_TICKS = 20;
 const RUN_DURATION_MS = 2000;
@@ -196,6 +197,27 @@ const parseSize = (sizeRaw) => {
   const cols = Number(colsRaw);
   if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows < 1 || cols < 1) return null;
   return { rows, cols };
+};
+
+const getRouteDirectionFromPieces = (pieces, explicitDirection = null) => {
+  if (explicitDirection) return explicitDirection;
+  if (!Array.isArray(pieces) || pieces.length < 2) return "south";
+
+  const [start, next] = pieces;
+  if (next.row === start.row - 1 && next.col === start.col) return "north";
+  if (next.row === start.row + 1 && next.col === start.col) return "south";
+  if (next.row === start.row && next.col === start.col + 1) return "east";
+  if (next.row === start.row && next.col === start.col - 1) return "west";
+  return "south";
+};
+
+const getPieceFacingDirection = (piece, isStart, isEnd, routeDirection) => {
+  const opposite = getOppositeDirection(routeDirection) || routeDirection;
+  if (isStart && isEnd) return routeDirection;
+  if (hasRouteType(piece, "Middle")) return opposite;
+  if (isEnd) return opposite;
+  if (isStart) return routeDirection;
+  return routeDirection;
 };
 
 const buildRoutePiece = (piece, row, col) => ({
@@ -537,35 +559,59 @@ export const useGridModel = () => {
     const map = new Map();
 
     placedStandalone.forEach((item) => {
+      const standalonePieceMeta = { id: item.pieceId, name: item.name };
+      const imageUrl = getPieceImageUrl(standalonePieceMeta);
       item.tiles.forEach((tile) => {
+        const offsetRow = tile.row - item.topLeft.row;
+        const offsetCol = tile.col - item.topLeft.col;
         map.set(makeTileKey(tile.row, tile.col), {
           kind: "standalone",
           instanceId: item.instanceId,
-          label: item.marker,
+          pieceId: item.pieceId,
+          name: item.name,
           color: item.color,
           isOrigin: tile.row === item.topLeft.row && tile.col === item.topLeft.col,
+          imageUrl,
+          spanRows: item.size.rows,
+          spanCols: item.size.cols,
+          offsetRow,
+          offsetCol,
         });
       });
     });
 
     committedRoutes.forEach((route) => {
+      const routeDirection = getRouteDirectionFromPieces(route.pieces, route.direction);
       route.pieces.forEach((piece, pieceIndex) => {
+        const isStart = pieceIndex === 0;
+        const isEnd = pieceIndex === route.pieces.length - 1;
+        const pieceDirection = getPieceFacingDirection(piece, isStart, isEnd, routeDirection);
         map.set(makeTileKey(piece.row, piece.col), {
           kind: "route",
           routeId: route.routeId,
           pieceIndex,
-          label: piece.marker,
+          pieceId: piece.id,
+          name: piece.name,
           color: piece.color,
+          imageUrl: getPieceImageUrl(piece),
+          rotationDeg: getRotationFromDirection(pieceDirection),
         });
       });
     });
 
     if (gridMode === "edit" && editingRoute) {
-      editingRoute.pieces.forEach((piece) => {
+      const routeDirection = getRouteDirectionFromPieces(editingRoute.pieces, editingRoute.direction);
+      editingRoute.pieces.forEach((piece, pieceIndex) => {
+        const isStart = pieceIndex === 0;
+        const isEnd = pieceIndex === editingRoute.pieces.length - 1;
+        const pieceDirection = getPieceFacingDirection(piece, isStart, isEnd, routeDirection);
         map.set(makeTileKey(piece.row, piece.col), {
           kind: "editing-route",
-          label: piece.marker,
+          pieceId: piece.id,
+          name: piece.name,
           color: piece.color,
+          imageUrl: getPieceImageUrl(piece),
+          rotationDeg: getRotationFromDirection(pieceDirection),
         });
       });
     }
@@ -915,6 +961,44 @@ export const useGridModel = () => {
       return null;
     },
     [editMode, editingRoute, gridMode]
+  );
+
+  const getDropPreviewTiles = useCallback(
+    (row, col, pieceId) => {
+      if (gridMode !== "edit" || editMode !== "build") return [];
+      const piece = [...standalonePieces, ...routePieces].find((item) => item.id === pieceId);
+      if (!piece) return [];
+
+      if (piece.type === "Standalone") {
+        if (editingRoute) return [];
+        if (!canPlaceStandalone(row, col, piece.size, gridSize, occupancy)) return [];
+        return buildStandaloneTiles(row, col, piece.size);
+      }
+
+      if (piece.type !== "Route" || editingRoute?.complete) return [];
+      if (occupancy.has(makeTileKey(row, col))) return [];
+
+      if (!editingRoute) {
+        return hasRouteType(piece, "Start") ? [{ row, col }] : [];
+      }
+
+      if (editingRoute.pieces.length === 1) {
+        if (!hasRouteType(piece, "Middle")) return [];
+        if (getMiddleSpeedInvalidReason(piece, editingRoute.currentSpeed || 0)) return [];
+        const direction = getDirectionFromFirstMiddle(editingRoute.pieces[0], { row, col });
+        return direction ? [{ row, col }] : [];
+      }
+
+      if (!hasRouteType(piece, "Middle") && !hasRouteType(piece, "End")) return [];
+      if (hasRouteType(piece, "Middle") && getMiddleSpeedInvalidReason(piece, editingRoute.currentSpeed || 0)) return [];
+      const lastPiece = editingRoute.pieces[editingRoute.pieces.length - 1];
+      const expected = getNextCellByDirection(lastPiece.row, lastPiece.col, editingRoute.direction);
+      if (!inBounds(row, col, gridSize)) return [];
+      if (expected.row !== row || expected.col !== col) return [];
+
+      return [{ row, col }];
+    },
+    [editMode, editingRoute, gridMode, gridSize, occupancy, routePieces, standalonePieces]
   );
 
   const animateSkaterOnTarget = useCallback(async (skaterId, target) => {
@@ -1508,5 +1592,6 @@ export const useGridModel = () => {
     onRecruitBeginnerSkater,
     onEndSession,
     onGoToEditMode,
+    getDropPreviewTiles,
   };
 };
