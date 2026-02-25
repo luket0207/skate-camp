@@ -46,7 +46,7 @@ const Skatepark = () => {
   return (
     <div className="skatepark">
       <div className="skatepark__shell">
-        <h1>Skatepark Builder</h1>
+        <h1>Skate Camp</h1>
         <div className="skatepark__tabs">
           <button
             type="button"

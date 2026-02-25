@@ -811,6 +811,8 @@ export const useGridModel = () => {
         id: skater.id,
         initials: skater.initials,
         color: skater.color,
+        sport: skater.sport,
+        markerType: "skater",
         trickName: sessionState.activeRunTricks?.[skater.id] || null,
       });
       markersByTile.set(key, list);
@@ -831,6 +833,7 @@ export const useGridModel = () => {
         id: instructorId,
         initials: instructor?.initials || getInitialsFromName(instructor?.name),
         color: "#facc15",
+        markerType: "instructor",
       });
       markersByTile.set(key, list);
     });

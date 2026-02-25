@@ -1,4 +1,6 @@
 import React from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faPerson, faPersonSkating, faPersonSnowboarding } from "@fortawesome/free-solid-svg-icons";
 import "./tile.scss";
 
 const Tile = ({
@@ -63,6 +65,12 @@ const Tile = ({
     }
   };
 
+  const getMarkerIcon = (marker) => {
+    if (marker?.markerType === "instructor") return faPerson;
+    if (marker?.sport === "Rollerblader") return faPersonSkating;
+    return faPersonSnowboarding;
+  };
+
   return (
     <button
       type="button"
@@ -92,10 +100,11 @@ const Tile = ({
             <span
               key={skater.id}
               className={`gridTile__skater gridTile__skater--slot${index + 1}`}
-              style={{ backgroundColor: skater.color }}
+              style={{ color: skater.color }}
               title={skater.initials}
             >
-              {skater.initials}
+              <FontAwesomeIcon icon={getMarkerIcon(skater)} className="gridTile__markerIcon" />
+              <span className="gridTile__markerLozenge">{skater.initials}</span>
               {skater.trickName && <span className="gridTile__skaterTrick">{skater.trickName}</span>}
             </span>
           ))}
@@ -109,7 +118,8 @@ const Tile = ({
               className={`gridTile__instructor gridTile__instructor--slot${index + 1}`}
               title={instructor.initials}
             >
-              {instructor.initials}
+              <FontAwesomeIcon icon={getMarkerIcon(instructor)} className="gridTile__markerIcon" />
+              <span className="gridTile__markerLozenge">{instructor.initials}</span>
             </span>
           ))}
         </span>
