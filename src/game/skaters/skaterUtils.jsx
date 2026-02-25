@@ -95,6 +95,9 @@ const generateSkater = ({ sport, tier, energyMin, energyMax, weightedEnergy = fa
     switchRating,
     switchPotential: randInt(Math.min(10, switchRating + 1), 10),
     trickLibrary,
+    isSponsored: false,
+    personalBest: 0,
+    sessionLog: [],
   };
 
   const withRatings = withDerivedRatings(base);

@@ -19,6 +19,37 @@ const getTrickTypeKeys = (sport) =>
     ? ["stall", "grind", "tech", "spin", "bigAir"]
     : ["stall", "grind", "tech", "spin", "bigAir"];
 
+const SessionLogModalContent = ({ skater }) => {
+  const entries = [...(Array.isArray(skater?.sessionLog) ? skater.sessionLog : [])].reverse();
+  return (
+    <div style={{ display: "grid", gap: "0.55rem", maxHeight: "60vh", overflowY: "auto" }}>
+      <strong>{skater?.name} Session Log</strong>
+      {entries.length < 1 && <div style={{ fontSize: "0.84rem" }}>No session log entries yet.</div>}
+      {entries.map((entry) => (
+        <div
+          key={entry.id}
+          style={{
+            display: "grid",
+            gap: "0.2rem",
+            border: "1px solid rgba(0, 0, 0, 0.15)",
+            borderRadius: "8px",
+            padding: "0.45rem 0.55rem",
+            fontSize: "0.8rem",
+          }}
+        >
+          <div>
+            <strong>{toTitle(entry.sessionType)}</strong> | Score: {Number(entry.score || 0)}
+            {entry.finishingPosition ? ` | Position: ${entry.finishingPosition}` : ""}
+          </div>
+          <div>
+            Week {entry.week}, {entry.dayName} (Day {entry.dayNumber})
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const Skaters = () => {
   const { gameState, setGameValue } = useGame();
   const { openModal, closeModal } = useModal();
@@ -51,6 +82,15 @@ const Skaters = () => {
     );
   };
 
+  const toggleSponsored = (skaterId) => {
+    const nextPool = pool.map((skater) =>
+      skater.id === skaterId
+        ? { ...skater, isSponsored: !Boolean(skater.isSponsored) }
+        : skater
+    );
+    setGameValue("player.skaterPool", nextPool);
+  };
+
   const openTreeModal = (skater) => {
     openModal({
       modalTitle: `${skater.name} Trick Tree`,
@@ -73,6 +113,14 @@ const Skaters = () => {
           }}
         />
       ),
+    });
+  };
+
+  const openSessionLogModal = (skater) => {
+    openModal({
+      modalTitle: `${skater.name} Session Log`,
+      buttons: MODAL_BUTTONS.OK,
+      modalContent: <SessionLogModalContent skater={skater} />,
     });
   };
 
@@ -108,10 +156,22 @@ const Skaters = () => {
         {pool.map((skater) => (
           <div key={skater.id} className="skatersPage__card">
             <div className="skatersPage__cardHead">
-              <h4>{skater.name}</h4>
+              <h4>
+                {skater.name}
+                {skater.isSponsored ? <span className="skatersPage__sponsoredTag">Sponsored</span> : null}
+              </h4>
               <div className="skatersPage__cardActions">
                 <Button variant={BUTTON_VARIANT.PRIMARY} onClick={() => openTreeModal(skater)}>
                   Trick Tree
+                </Button>
+                <Button variant={BUTTON_VARIANT.SECONDARY} onClick={() => openSessionLogModal(skater)}>
+                  Session Log
+                </Button>
+                <Button
+                  variant={skater.isSponsored ? BUTTON_VARIANT.SECONDARY : BUTTON_VARIANT.PRIMARY}
+                  onClick={() => toggleSponsored(skater.id)}
+                >
+                  {skater.isSponsored ? "Unsponsor" : "Sponsor"}
                 </Button>
                 <Button variant={BUTTON_VARIANT.SECONDARY} onClick={() => removeSkater(skater.id)}>
                   Remove
@@ -133,6 +193,7 @@ const Skaters = () => {
                   <li><strong>Sport:</strong> {skater.sport}</li>
                   <li><strong>Initials:</strong> {skater.initials}</li>
                   <li><strong>Base Energy:</strong> {skater.baseEnergy}</li>
+                  <li><strong>Personal Best:</strong> {Number(skater.personalBest || 0)}</li>
                   <li><strong>Skill Level:</strong> {skater.skillLevel}</li>
                   <li><strong>Determination:</strong> {skater.determination}</li>
                   <li><strong>Steeze Rating:</strong> {skater.steezeRating}</li>

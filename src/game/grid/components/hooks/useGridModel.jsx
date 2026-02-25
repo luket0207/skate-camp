@@ -6,7 +6,14 @@ import { useGame } from "../../../../engine/gameContext/gameContext";
 import { MODAL_BUTTONS, useModal } from "../../../../engine/ui/modal/modalContext";
 import { useToast } from "../../../../engine/ui/toast/toast";
 import Button, { BUTTON_VARIANT } from "../../../../engine/ui/button/button";
-import { generateBeginnerSkater, randomIntInclusive, shuffleItems, SKATER_SPORT } from "../../../skaters/skaterUtils";
+import {
+  generateBeginnerSkater,
+  generateMediumSkater,
+  generateProSkater,
+  randomIntInclusive,
+  shuffleItems,
+  SKATER_SPORT,
+} from "../../../skaters/skaterUtils";
 import { TRICK_TREES, TRICK_TYPES_BY_SPORT } from "../../../../assets/gameContent/tricks/trickTrees";
 import { buildTrickName, makeModifierKey } from "../../../skaters/trickNameUtils";
 import {
@@ -33,6 +40,7 @@ import { getOppositeDirection, getPieceImageUrl, getRotationFromDirection } from
 
 const SESSION_TICKS = 20;
 const LESSON_SESSION_TICKS = 10;
+const COMPETITION_SESSION_TICKS = 10;
 const RUN_DURATION_MS = 2000;
 const MIN_TICK_DURATION_MS = 500;
 const DAYS_PER_WEEK = 5;
@@ -46,6 +54,11 @@ const SESSION_CLOCK_DEFAULT = {
 const LESSON_CLOCK_DEFAULT = {
   totalTicks: LESSON_SESSION_TICKS,
   ticksRemaining: LESSON_SESSION_TICKS,
+  currentTick: 0,
+};
+const COMPETITION_CLOCK_DEFAULT = {
+  totalTicks: COMPETITION_SESSION_TICKS,
+  ticksRemaining: COMPETITION_SESSION_TICKS,
   currentTick: 0,
 };
 const DEFAULT_TIME_STATE = {
@@ -431,6 +444,60 @@ const BeginnerSportModal = ({ onChoose }) => {
   );
 };
 
+const CompetitionSetupModal = ({ maxSlots, onStart }) => {
+  const [slots, setSlots] = React.useState(Math.min(Math.max(4, maxSlots), 8));
+  const [sport, setSport] = React.useState(SKATER_SPORT.SKATEBOARDER);
+  const [level, setLevel] = React.useState("beginner");
+  const safeMax = Math.max(4, Math.min(15, Number(maxSlots) || 4));
+
+  return (
+    <div style={{ display: "grid", gap: "0.85rem" }}>
+      <div style={{ fontSize: "0.86rem", opacity: 0.9 }}>
+        Set up the competition. Skater slots: 4 to {safeMax}.
+      </div>
+
+      <label style={{ display: "grid", gap: "0.35rem" }}>
+        Skater Slots
+        <select
+          value={slots}
+          onChange={(event) => {
+            const value = Number(event.target.value);
+            if (!Number.isFinite(value)) return;
+            setSlots(Math.min(safeMax, Math.max(4, value)));
+          }}
+        >
+          {Array.from({ length: safeMax - 3 }, (_, index) => 4 + index).map((value) => (
+            <option key={`competition-slots-${value}`} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label style={{ display: "grid", gap: "0.35rem" }}>
+        Sport
+        <select value={sport} onChange={(event) => setSport(event.target.value)}>
+          <option value={SKATER_SPORT.SKATEBOARDER}>Skateboarding</option>
+          <option value={SKATER_SPORT.ROLLERBLADER}>Rollerblading</option>
+        </select>
+      </label>
+
+      <label style={{ display: "grid", gap: "0.35rem" }}>
+        Competition Level
+        <select value={level} onChange={(event) => setLevel(event.target.value)}>
+          <option value="beginner">Beginner</option>
+          <option value="semi-pro">Semi-Pro</option>
+          <option value="pro">Pro</option>
+        </select>
+      </label>
+
+      <Button variant={BUTTON_VARIANT.PRIMARY} onClick={() => onStart({ slots, sport, level })}>
+        Start Competition
+      </Button>
+    </div>
+  );
+};
+
 const LessonSetupModal = ({ instructors, skaters, maxInstructorCount, onStart }) => {
   const [selectedInstructorIds, setSelectedInstructorIds] = React.useState([]);
   const [selectedSkaterIds, setSelectedSkaterIds] = React.useState([]);
@@ -603,6 +670,56 @@ const LessonFeedbackModal = ({ results }) => {
   );
 };
 
+const CompetitionResultsModal = ({ entries = [], bestTrick = null }) => {
+  const medals = ["🥇", "🥈", "🥉"];
+  return (
+    <div style={{ display: "grid", gap: "0.55rem", maxHeight: "60vh", overflowY: "auto" }}>
+      <strong>Competition Results</strong>
+      {bestTrick && (
+        <div
+          style={{
+            display: "grid",
+            gap: "0.2rem",
+            border: "1px solid rgba(0,0,0,0.2)",
+            borderRadius: "8px",
+            padding: "0.5rem 0.6rem",
+            background: "rgba(0,0,0,0.04)",
+            fontSize: "0.82rem",
+          }}
+        >
+          <strong>Best Trick</strong>
+          <div>
+            {bestTrick.trickName || "Unknown Trick"} by {bestTrick.skaterName} | {bestTrick.points} pts
+          </div>
+          <div>
+            {bestTrick.pieceName}
+            {bestTrick.pieceCoordinate ? ` (${bestTrick.pieceCoordinate})` : ""}
+          </div>
+        </div>
+      )}
+      {entries.length < 1 && <div style={{ fontSize: "0.85rem" }}>No scores recorded.</div>}
+      {entries.map((entry, index) => (
+        <div
+          key={entry.skaterId || `${entry.skaterName}-${index}`}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "auto 1fr auto",
+            gap: "0.5rem",
+            alignItems: "center",
+            border: "1px solid rgba(0,0,0,0.15)",
+            borderRadius: "8px",
+            padding: "0.45rem 0.55rem",
+          }}
+        >
+          <span style={{ minWidth: "2.2rem", fontWeight: 700 }}>{medals[index] || `${index + 1}.`}</span>
+          <span>{entry.skaterName}</span>
+          <span style={{ fontWeight: 700 }}>{entry.points} pts</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const chooseRandom = (items) => items[randomIntInclusive(0, items.length - 1)];
 
 const buildLessonTeachAttempt = ({
@@ -731,6 +848,12 @@ const createDefaultSessionState = () => ({
   retryQueue: {},
   instructorTrickRating: 0,
   activeRunTricks: {},
+  competition: {
+    sport: null,
+    level: null,
+    slots: 0,
+    sponsoredCount: 0,
+  },
   lesson: {
     isPlacementPhase: false,
     activePlacementInstructorId: null,
@@ -1094,6 +1217,14 @@ export const useGridModel = () => {
       playerSkaterPool.length,
       sessionState.isActive,
     ]
+  );
+  const canStartCompetitionSession = useMemo(
+    () =>
+      hasAnySkateparkPiece &&
+      hasSessionAvailableToday &&
+      !sessionState.isActive &&
+      startingSpotsCapacity >= 4,
+    [hasAnySkateparkPiece, hasSessionAvailableToday, sessionState.isActive, startingSpotsCapacity]
   );
 
   const skaterById = useMemo(() => {
@@ -1759,7 +1890,15 @@ export const useGridModel = () => {
       : [];
 
     const baseTiles = runTiles.length > 0 ? runTiles : keyTiles.length > 0 ? keyTiles : startCell;
-    const orderedTiles = target?.type === "Route" ? baseTiles : shuffleItems(baseTiles);
+    const orderedTiles = (() => {
+      if (target?.type === "Route") return baseTiles;
+      if (startCell.length > 0 && baseTiles.length > 1) {
+        const startKey = makeTileKey(startCell[0].row, startCell[0].col);
+        const remaining = baseTiles.filter((tile) => makeTileKey(tile.row, tile.col) !== startKey);
+        return [startCell[0], ...shuffleItems(remaining)];
+      }
+      return shuffleItems(baseTiles);
+    })();
     const tiles = orderedTiles.length > 0 ? orderedTiles : [];
     if (tiles.length < 1) return;
     const waitMs = RUN_DURATION_MS / Math.max(1, tiles.length);
@@ -1777,8 +1916,14 @@ export const useGridModel = () => {
   }, []);
 
   const startSessionWithSkaters = useCallback(
-    (sessionType, baseSkaters) => {
+    (sessionType, baseSkaters, options = {}) => {
       const skaters = baseSkaters.map(withSessionTiming);
+      const isCompetition = sessionType === "competition";
+      const maxTicks = isCompetition ? COMPETITION_SESSION_TICKS : SESSION_TICKS;
+      const clock = isCompetition ? COMPETITION_CLOCK_DEFAULT : SESSION_CLOCK_DEFAULT;
+      const finalSkaters = isCompetition
+        ? skaters.map((skater) => ({ ...skater, arrivalTick: 1, energy: COMPETITION_SESSION_TICKS }))
+        : skaters;
 
       setGridMode("session");
       setEditMode("build");
@@ -1786,14 +1931,28 @@ export const useGridModel = () => {
         ...createDefaultSessionState(),
         isActive: true,
         currentTick: 0,
-        maxTicks: SESSION_TICKS,
+        maxTicks,
         sessionType,
-        skaters,
+        skaters: finalSkaters,
         beginnerCandidates: sessionType === "beginner" ? baseSkaters : [],
-        clock: SESSION_CLOCK_DEFAULT,
+        clock,
+        competition: isCompetition
+          ? {
+            sport: options.sport || null,
+            level: options.level || null,
+            slots: Number(options.slots || finalSkaters.length || 0),
+            sponsoredCount: Number(options.sponsoredCount || 0),
+          }
+          : createDefaultSessionState().competition,
       });
 
-      success(`${sessionType === "beginner" ? "Beginner" : "Normal"} session started.`);
+      success(
+        sessionType === "beginner"
+          ? "Beginner session started."
+          : sessionType === "competition"
+            ? "Competition session started."
+            : "Normal session started."
+      );
     },
     [success]
   );
@@ -1846,6 +2005,67 @@ export const useGridModel = () => {
     editingRoute,
     hasAnySkateparkPiece,
     hasSessionAvailableToday,
+    playerSkaterPool,
+    startSessionWithSkaters,
+    startingSpotsCapacity,
+    warning,
+  ]);
+
+  const onStartCompetitionSession = useCallback(() => {
+    if (editingRoute) return warning("Commit or cancel the current route first.");
+    if (!hasAnySkateparkPiece) return warning("Place at least one piece in the skatepark before starting a session.");
+    if (!hasSessionAvailableToday) return warning("You can only hold one session per day.");
+    if (!canStartCompetitionSession) return warning("Competition session is not available right now.");
+    if (startingSpotsCapacity < 4) return warning("Competition sessions require at least 4 starting spots.");
+
+    const maxSlots = Math.min(15, startingSpotsCapacity);
+    openModal({
+      modalTitle: "Setup Competition Session",
+      buttons: MODAL_BUTTONS.NONE,
+      modalContent: (
+        <CompetitionSetupModal
+          maxSlots={maxSlots}
+          onStart={({ slots, sport, level }) => {
+            const slotCount = Math.max(4, Math.min(maxSlots, Number(slots) || 4));
+            const sponsoredLimit = Math.floor(slotCount / 2);
+            const sponsoredEligible = shuffleItems(
+              playerSkaterPool.filter((skater) => skater?.isSponsored && skater?.sport === sport)
+            );
+            const sponsoredPicked = sponsoredEligible.slice(0, sponsoredLimit);
+
+            const generatorByLevel = {
+              beginner: generateBeginnerSkater,
+              "semi-pro": generateMediumSkater,
+              pro: generateProSkater,
+            };
+            const generator = generatorByLevel[level] || generateBeginnerSkater;
+
+            const guestsNeeded = Math.max(0, slotCount - sponsoredPicked.length);
+            const guestSkaters = Array.from({ length: guestsNeeded }, (_, index) => ({
+              ...generator(sport),
+              id: `competition-guest-${Date.now()}-${index}-${Math.random().toString(16).slice(2, 6)}`,
+              isSponsored: false,
+            }));
+
+            const competitionSkaters = [...sponsoredPicked, ...guestSkaters].slice(0, slotCount);
+            startSessionWithSkaters("competition", competitionSkaters, {
+              slots: slotCount,
+              sport,
+              level,
+              sponsoredCount: sponsoredPicked.length,
+            });
+            closeModal();
+          }}
+        />
+      ),
+    });
+  }, [
+    canStartCompetitionSession,
+    closeModal,
+    editingRoute,
+    hasAnySkateparkPiece,
+    hasSessionAvailableToday,
+    openModal,
     playerSkaterPool,
     startSessionWithSkaters,
     startingSpotsCapacity,
@@ -2473,7 +2693,61 @@ export const useGridModel = () => {
         ? (sessionState.lesson?.attemptEntries || []).length
         : sessionState.trickAttempts.length,
       recruitedSkaterIds: sessionState.recruitedSkaterIds,
+      competition: sessionState.sessionType === "competition" ? sessionState.competition : null,
     };
+
+    const scoreBySkaterId = new Map();
+    if (sessionState.sessionType === "lesson") {
+      const lessonEntries = Array.isArray(sessionState.lesson?.attemptEntries) ? sessionState.lesson.attemptEntries : [];
+      lessonEntries.forEach((entry) => {
+        const current = scoreBySkaterId.get(entry.skaterId) || 0;
+        scoreBySkaterId.set(entry.skaterId, current + Number(entry.trickPoints || 0));
+      });
+    } else {
+      const trickEntries = Array.isArray(sessionState.trickAttempts) ? sessionState.trickAttempts : [];
+      trickEntries.forEach((entry) => {
+        const current = scoreBySkaterId.get(entry.skaterId) || 0;
+        scoreBySkaterId.set(entry.skaterId, current + Number(entry.trickPoints || 0));
+      });
+    }
+
+    const competitionPositions = new Map();
+    if (sessionState.sessionType === "competition") {
+      const ranked = [...(sessionState.skaters || [])]
+        .map((skater) => ({
+          skaterId: skater.id,
+          score: Number(scoreBySkaterId.get(skater.id) || 0),
+        }))
+        .sort((a, b) => b.score - a.score);
+      ranked.forEach((entry, index) => competitionPositions.set(entry.skaterId, index + 1));
+    }
+
+    setPlayerSkaterPool((prev) =>
+      prev.map((skater) => {
+        const participated = (sessionState.skaters || []).some((entry) => entry.id === skater.id);
+        if (!participated) return skater;
+
+        const score = Number(scoreBySkaterId.get(skater.id) || 0);
+        const logEntry = {
+          id: `skater-session-${Date.now()}-${Math.random().toString(16).slice(2, 7)}`,
+          dayNumber: completedDayNumber,
+          week: completedWeek,
+          dayName: completedDayName,
+          sessionType: sessionState.sessionType,
+          score,
+          finishingPosition:
+            sessionState.sessionType === "competition" ? Number(competitionPositions.get(skater.id) || null) : null,
+        };
+        const sessionLog = Array.isArray(skater.sessionLog) ? [...skater.sessionLog, logEntry] : [logEntry];
+        const personalBest = Math.max(Number(skater.personalBest || 0), score);
+
+        return {
+          ...skater,
+          sessionLog,
+          personalBest,
+        };
+      })
+    );
 
     setTimeState((prev) => {
       const nextDayNumber = prev.dayNumber + 1;
@@ -2559,13 +2833,67 @@ export const useGridModel = () => {
     warning,
   ]);
 
+  const onEndCompetitionSession = useCallback(() => {
+    if (gridMode !== "session" || sessionState.sessionType !== "competition") return;
+    if (!canEndSession) {
+      warning("Complete all competition ticks before ending the session.");
+      return;
+    }
+
+    const totals = (sessionState.skaters || []).map((skater) => {
+      const points = (sessionState.trickAttempts || [])
+        .filter((entry) => entry.skaterId === skater.id)
+        .reduce((sum, entry) => sum + Number(entry.trickPoints || 0), 0);
+      return {
+        skaterId: skater.id,
+        skaterName: skater.name,
+        points,
+      };
+    }).sort((a, b) => b.points - a.points);
+
+    const bestTrickEntry = (sessionState.trickAttempts || [])
+      .filter((entry) => entry?.landed && Number(entry?.trickPoints || 0) > 0)
+      .sort((a, b) => Number(b.trickPoints || 0) - Number(a.trickPoints || 0))[0] || null;
+
+    const bestTrick = bestTrickEntry
+      ? {
+        trickName: bestTrickEntry.trickName,
+        skaterName: bestTrickEntry.skaterName,
+        points: Number(bestTrickEntry.trickPoints || 0),
+        pieceName: bestTrickEntry.pieceName || bestTrickEntry.targetLabel || "Unknown Piece",
+        pieceCoordinate: bestTrickEntry.pieceCoordinate || null,
+      }
+      : null;
+
+    openModal({
+      modalTitle: "Competition Complete",
+      buttons: MODAL_BUTTONS.OK,
+      modalContent: <CompetitionResultsModal entries={totals} bestTrick={bestTrick} />,
+      onClick: () => {
+        closeModal();
+        onEndSession();
+      },
+    });
+  }, [
+    canEndSession,
+    closeModal,
+    gridMode,
+    onEndSession,
+    openModal,
+    sessionState.sessionType,
+    sessionState.skaters,
+    sessionState.trickAttempts,
+    warning,
+  ]);
+
   const onAdvanceTick = useCallback(async () => {
     if (gridMode !== "session" || !sessionState.isActive || sessionState.isTickRunning) return;
     if (sessionState.sessionType === "lesson") return;
     const nextTick = sessionState.currentTick + 1;
-    if (nextTick > SESSION_TICKS) return;
+    if (nextTick > sessionState.maxTicks) return;
 
     const tickStartMs = Date.now();
+    const difficultyBiasBoost = sessionState.sessionType === "competition" ? 0.35 : 0;
 
     const activeSkaters = sessionState.skaters.filter(
       (skater) => nextTick >= skater.arrivalTick && nextTick < skater.arrivalTick + skater.energy
@@ -2610,6 +2938,8 @@ export const useGridModel = () => {
           target,
           allSkateparkPieces: allSkateparkRunPieces,
           priorSessionResults: priorResultsForSkater,
+          difficultyBiasBoost,
+          allowGlobalFallback: false,
         });
         attemptPlanByTarget[targetId] = attemptsPreview;
         return attemptsPreview.some((attempt) => attempt?.type && attempt?.coreName && attempt?.pieceDifficulty);
@@ -2644,9 +2974,9 @@ export const useGridModel = () => {
       skaterPositions: startPositions,
       activeRunTricks: {},
       clock: {
-        totalTicks: SESSION_TICKS,
+        totalTicks: sessionState.maxTicks,
         currentTick: nextTick,
-        ticksRemaining: Math.max(0, SESSION_TICKS - nextTick),
+        ticksRemaining: Math.max(0, sessionState.maxTicks - nextTick),
       },
     }));
 
@@ -2676,6 +3006,8 @@ export const useGridModel = () => {
               target,
               allSkateparkPieces: allSkateparkRunPieces,
               priorSessionResults: priorResultsForSkater,
+              difficultyBiasBoost,
+              allowGlobalFallback: false,
             })
           ).map((attempt) => ({ ...attempt, attemptNumber: 1 }));
 
@@ -2844,7 +3176,7 @@ export const useGridModel = () => {
       await sleep(MIN_TICK_DURATION_MS - elapsedMs);
     }
 
-    const sessionEnded = nextTick >= SESSION_TICKS;
+    const sessionEnded = nextTick >= sessionState.maxTicks;
     setSessionState((prev) => ({
       ...prev,
       isTickRunning: false,
@@ -2857,7 +3189,13 @@ export const useGridModel = () => {
       activeRunTricks: {},
     }));
 
-    if (sessionEnded) success("Session ended after 20 ticks.");
+    if (sessionEnded) {
+      success(
+        sessionState.sessionType === "competition"
+          ? "Competition session ended after 10 ticks."
+          : `Session ended after ${sessionState.maxTicks} ticks.`
+      );
+    }
   }, [
     animateSkaterOnTarget,
     gridMode,
@@ -2952,6 +3290,7 @@ export const useGridModel = () => {
     canStartBeginnerSession,
     canStartNormalSession,
     canStartLessonSession,
+    canStartCompetitionSession,
     lessonTickReady,
     canEndSession,
     canRecruitInSession,
@@ -2967,9 +3306,11 @@ export const useGridModel = () => {
     onStartBeginnerSession,
     onStartNormalSession,
     onStartLessonSession,
+    onStartCompetitionSession,
     onRecruitBeginnerSkater,
     onEndSession,
     onEndLessonSession,
+    onEndCompetitionSession,
     onSelectLessonInstructorForPlacement,
     onUpdateLessonTickAssignment,
     onRandomizeLessonTickAssignments,

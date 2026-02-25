@@ -69,8 +69,6 @@ const getSkaterRatingForType = (skater, type) => {
   const ratings = getTypeRatingsForSkater(skater || {});
   return Math.max(0, Number(ratings[type] || 0));
 };
-const getSkillLevel = (skater) => Math.max(1, Math.min(100, Number(skater?.skillLevel || 1)));
-const canAttemptBySkill = (skillLevel, pieceDifficulty) => skillLevel >= ((pieceDifficulty - 3) * 10);
 
 const buildTypeWeights = (types, skater) => {
   if (types.length === 1) return [{ type: types[0], weight: 1 }];
@@ -152,11 +150,9 @@ const pickVariantComboForCore = (options, attemptedComboKeys, piece, type, coreN
 };
 
 const buildAttemptCandidateFromPiece = (piece, skater, attemptedComboKeys, landedComboKeys, difficultyBias = 0) => {
-  const skillLevel = getSkillLevel(skater);
   const allowedTypes = (difficultyKeysBySport[skater.sport] || []).filter((type) => {
     const pieceDifficulty = getPieceDifficulty(piece, skater.sport, type);
     if (pieceDifficulty === null) return false;
-    if (!canAttemptBySkill(skillLevel, pieceDifficulty)) return false;
     return getCoreTricksForType(skater, type).length > 0;
   });
   if (allowedTypes.length < 1) return null;
@@ -214,19 +210,24 @@ const buildAttemptCandidateFromPiece = (piece, skater, attemptedComboKeys, lande
   };
 };
 
-export const buildTrickAttemptsForRun = ({ skater, target, allSkateparkPieces = [], priorSessionResults = [] }) => {
+export const buildTrickAttemptsForRun = ({
+  skater,
+  target,
+  allSkateparkPieces = [],
+  priorSessionResults = [],
+  difficultyBiasBoost = 0,
+  allowGlobalFallback = false,
+}) => {
   if (!skater || !target) return [];
   const runPieces = Array.isArray(target.runPieces) ? target.runPieces : [];
   if (runPieces.length < 1) return [];
 
   const isPieceCandidateForSkater = (piece) => {
-    const skillLevel = getSkillLevel(skater);
     const opportunities = Number(piece.trickOpportunities || 0);
     if (opportunities < 1) return false;
     return (difficultyKeysBySport[skater.sport] || []).some((type) => {
       const pd = getPieceDifficulty(piece, skater.sport, type);
       if (pd === null) return false;
-      if (!canAttemptBySkill(skillLevel, pd)) return false;
       return getCoreTricksForType(skater, type).length > 0;
     });
   };
@@ -235,26 +236,27 @@ export const buildTrickAttemptsForRun = ({ skater, target, allSkateparkPieces = 
   const globalCandidatePieces = (Array.isArray(allSkateparkPieces) ? allSkateparkPieces : []).filter(
     isPieceCandidateForSkater
   );
-  const candidatePieces = runCandidatePieces.length > 0 ? runCandidatePieces : globalCandidatePieces;
+  const candidatePieces = runCandidatePieces.length > 0
+    ? runCandidatePieces
+    : (allowGlobalFallback ? globalCandidatePieces : []);
 
   if (candidatePieces.length < 1) {
-    const skillLevel = getSkillLevel(skater);
     const hasAnyOpportunityPiece = runPieces.some((piece) => Number(piece.trickOpportunities || 0) > 0);
-    const hasOnlyTooDifficultPieces = hasAnyOpportunityPiece && runPieces
+    const hasNoSupportedTypes = hasAnyOpportunityPiece && runPieces
       .filter((piece) => Number(piece.trickOpportunities || 0) > 0)
       .every((piece) =>
         (difficultyKeysBySport[skater.sport] || []).every((type) => {
           const pd = getPieceDifficulty(piece, skater.sport, type);
           if (pd === null) return true;
-          return !canAttemptBySkill(skillLevel, pd);
+          return getCoreTricksForType(skater, type).length < 1;
         })
       );
 
-    if (hasOnlyTooDifficultPieces) {
+    if (hasNoSupportedTypes) {
       return [{
         type: null,
-        trickName: "No Attempt - no piece had an appropriate difficulty for this skater.",
-        noAttemptReason: "No appropriate difficulty",
+        trickName: "No Attempt - no supported trick types found for this target.",
+        noAttemptReason: "No supported trick types",
         coreName: null,
         coreLevel: 0,
         variants: [],
@@ -285,7 +287,7 @@ export const buildTrickAttemptsForRun = ({ skater, target, allSkateparkPieces = 
   const landedComboKeysInSession = new Set(
     priorSessionResults.filter((entry) => entry?.skaterId === skater.id && entry.comboKey && entry.landed).map((entry) => entry.comboKey)
   );
-  const fallbackPieces = Array.isArray(allSkateparkPieces)
+  const fallbackPieces = allowGlobalFallback && Array.isArray(allSkateparkPieces)
     ? allSkateparkPieces
       .filter((piece) => !(piece.name === chosenRunPiece.name && (piece.coordinate || null) === (chosenRunPiece.coordinate || null)))
       .filter(isPieceCandidateForSkater)
@@ -295,7 +297,7 @@ export const buildTrickAttemptsForRun = ({ skater, target, allSkateparkPieces = 
     0,
     1
   );
-  const baseDifficultyBias = Math.pow(sessionProgress, 1.25);
+  const baseDifficultyBias = clamp(Math.pow(sessionProgress, 1.25) + Math.max(0, Number(difficultyBiasBoost) || 0), 0, 1);
 
   for (let i = 0; i < attemptCount; i += 1) {
     const perAttemptBias = clamp(baseDifficultyBias + ((i / Math.max(1, attemptCount)) * 0.2), 0, 1);

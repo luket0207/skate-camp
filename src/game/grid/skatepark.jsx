@@ -152,6 +152,7 @@ const Skatepark = () => {
                 canStartBeginnerSession={model.canStartBeginnerSession}
                 canStartNormalSession={model.canStartNormalSession}
                 canStartLessonSession={model.canStartLessonSession}
+                canStartCompetitionSession={model.canStartCompetitionSession}
                 canExecuteLessonTick={model.lessonTickReady}
                 canEndSession={model.canEndSession}
                 playerSkaterPoolCount={model.playerSkaterPool.length}
@@ -165,7 +166,9 @@ const Skatepark = () => {
                 onStartBeginnerSession={model.onStartBeginnerSession}
                 onStartNormalSession={model.onStartNormalSession}
                 onStartLessonSession={model.onStartLessonSession}
+                onStartCompetitionSession={model.onStartCompetitionSession}
                 onEndLessonSession={model.onEndLessonSession}
+                onEndCompetitionSession={model.onEndCompetitionSession}
                 onExecuteLessonTick={model.onExecuteLessonTick}
                 onEndSession={model.onEndSession}
               />

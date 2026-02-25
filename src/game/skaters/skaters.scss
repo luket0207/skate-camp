@@ -65,7 +65,22 @@
 
   h4 {
     margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
   }
+}
+
+.skatersPage__sponsoredTag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #0f172a;
+  background: #facc15;
+  border: 1px solid rgba(0, 0, 0, 0.24);
 }
 
 .skatersPage__cardActions {

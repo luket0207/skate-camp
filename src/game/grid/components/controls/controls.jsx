@@ -15,6 +15,7 @@ const Controls = ({
   canStartBeginnerSession,
   canStartNormalSession,
   canStartLessonSession,
+  canStartCompetitionSession,
   canExecuteLessonTick,
   canEndSession,
   playerSkaterPoolCount,
@@ -28,7 +29,9 @@ const Controls = ({
   onStartBeginnerSession,
   onStartNormalSession,
   onStartLessonSession,
+  onStartCompetitionSession,
   onEndLessonSession,
+  onEndCompetitionSession,
   onExecuteLessonTick,
   onEndSession,
 }) => {
@@ -57,9 +60,15 @@ const Controls = ({
             </Button>
           </>
         ) : gridMode === "session" ? (
-          <Button variant={BUTTON_VARIANT.PRIMARY} onClick={onEndSession} disabled={!canEndSession}>
-            End Session
-          </Button>
+          sessionState.sessionType === "competition" ? (
+            <Button variant={BUTTON_VARIANT.PRIMARY} onClick={onEndCompetitionSession} disabled={!canEndSession}>
+              End Session
+            </Button>
+          ) : (
+            <Button variant={BUTTON_VARIANT.PRIMARY} onClick={onEndSession} disabled={!canEndSession}>
+              End Session
+            </Button>
+          )
         ) : (
           <>
             <Button
@@ -84,6 +93,14 @@ const Controls = ({
               disabled={sessionState.isTickRunning || sessionState.isActive || !canStartLessonSession}
             >
               Start Lesson Session
+            </Button>
+
+            <Button
+              variant={BUTTON_VARIANT.SECONDARY}
+              onClick={onStartCompetitionSession}
+              disabled={sessionState.isTickRunning || sessionState.isActive || !canStartCompetitionSession}
+            >
+              Start Competition Session
             </Button>
           </>
         )}
