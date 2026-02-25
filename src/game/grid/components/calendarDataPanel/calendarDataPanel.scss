@@ -25,9 +25,41 @@
   font-weight: 700;
 }
 
-.calendarDataPanel__meta {
+.calendarDataPanel__description {
   font-size: 0.75rem;
+  line-height: 1.35;
   opacity: 0.86;
+}
+
+.calendarDataPanel__metaGrid {
+  display: grid;
+  gap: 0.24rem;
+}
+
+.calendarDataPanel__metaRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.74rem;
+}
+
+.calendarDataPanel__label {
+  opacity: 0.78;
+}
+
+.calendarDataPanel__value {
+  font-weight: 700;
+  text-align: right;
+}
+
+.calendarDataPanel__ratingsTitle {
+  margin-top: 0.2rem;
+  font-size: 0.73rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.82;
 }
 
 .calendarDataPanel__empty {
