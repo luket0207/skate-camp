@@ -83,7 +83,8 @@ const createDragPreview = (piece, tileSizePx, imageUrl) => {
 const onPieceDragStart = (event, piece) => {
   event.dataTransfer.setData("application/json", JSON.stringify({ pieceId: piece.id }));
 
-  const tileSizePx = Math.max(1, Math.round(event.currentTarget.getBoundingClientRect().width || 40));
+  const sourceElement = event.currentTarget;
+  const tileSizePx = Math.max(1, Math.round(sourceElement.getBoundingClientRect().width || 40));
   const preview = createDragPreview(piece, tileSizePx, getPieceImageUrl(piece));
   document.body.appendChild(preview);
 
@@ -91,10 +92,10 @@ const onPieceDragStart = (event, piece) => {
 
   const cleanup = () => {
     preview.remove();
-    event.currentTarget.removeEventListener("dragend", cleanup);
+    sourceElement?.removeEventListener("dragend", cleanup);
   };
 
-  event.currentTarget.addEventListener("dragend", cleanup);
+  sourceElement.addEventListener("dragend", cleanup);
 };
 
 const PieceCard = ({ piece, isDragging, dragInvalidReason, onDragStart, onDragEnd }) => {

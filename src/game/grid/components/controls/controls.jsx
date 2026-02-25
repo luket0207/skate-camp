@@ -1,5 +1,7 @@
 import React from "react";
 import Button, { BUTTON_VARIANT } from "../../../../engine/ui/button/button";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faTrashCan } from "@fortawesome/free-solid-svg-icons";
 import { MIN_GRID_SIZE } from "../hooks/gridUtils";
 import "./controls.scss";
 
@@ -13,6 +15,7 @@ const Controls = ({
   canStartBeginnerSession,
   canStartNormalSession,
   canStartLessonSession,
+  canExecuteLessonTick,
   canEndSession,
   playerSkaterPoolCount,
   startingSpotsCapacity,
@@ -25,6 +28,8 @@ const Controls = ({
   onStartBeginnerSession,
   onStartNormalSession,
   onStartLessonSession,
+  onEndLessonSession,
+  onExecuteLessonTick,
   onEndSession,
 }) => {
   return (
@@ -38,12 +43,23 @@ const Controls = ({
       </div>
 
       <div className="gridControls__modeButtons">
-        {gridMode === "session" && sessionState.sessionType !== "lesson" ? (
+        {gridMode === "session" && sessionState.sessionType === "lesson" ? (
+          <>
+            <Button
+              variant={BUTTON_VARIANT.PRIMARY}
+              onClick={onExecuteLessonTick}
+              disabled={!canExecuteLessonTick}
+            >
+              Start
+            </Button>
+            <Button variant={BUTTON_VARIANT.SECONDARY} onClick={onEndLessonSession} disabled={!canEndSession}>
+              End Session
+            </Button>
+          </>
+        ) : gridMode === "session" ? (
           <Button variant={BUTTON_VARIANT.PRIMARY} onClick={onEndSession} disabled={!canEndSession}>
             End Session
           </Button>
-        ) : gridMode === "session" ? (
-          <div className="gridControls__lessonNotice">Lesson controls are in the lesson panel.</div>
         ) : (
           <>
             <Button
@@ -112,10 +128,17 @@ const Controls = ({
 
           <div className="gridControls__group">
             <Button
-              variant={editMode === "delete" ? BUTTON_VARIANT.SECONDARY : BUTTON_VARIANT.PRIMARY}
+              variant={editMode === "delete" ? BUTTON_VARIANT.SECONDARY : BUTTON_VARIANT.RED}
               onClick={onToggleDeleteMode}
             >
-              {editMode === "delete" ? "Stop Deleting" : "Delete Pieces"}
+              {editMode === "delete" ? (
+                "Stop Deleting"
+              ) : (
+                <>
+                  <FontAwesomeIcon icon={faTrashCan} style={{ marginRight: "0.45rem" }} />
+                  Delete Pieces
+                </>
+              )}
             </Button>
           </div>
         </div>

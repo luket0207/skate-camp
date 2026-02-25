@@ -92,7 +92,10 @@ const Skatepark = () => {
                     lessonState={model.lessonState}
                     selectedInstructors={model.lessonSelectedInstructors}
                     selectedSkaters={model.lessonSelectedSkaters}
+                    trickTypeOptionsByInstructor={model.lessonTrickTypeOptionsByInstructor}
                     onSelectInstructorForPlacement={model.onSelectLessonInstructorForPlacement}
+                    onUpdateTickAssignment={model.onUpdateLessonTickAssignment}
+                    onRandomizeTickAssignments={model.onRandomizeLessonTickAssignments}
                     onEndLessonSession={model.onEndLessonSession}
                   />
                 ) : (
@@ -149,6 +152,7 @@ const Skatepark = () => {
                 canStartBeginnerSession={model.canStartBeginnerSession}
                 canStartNormalSession={model.canStartNormalSession}
                 canStartLessonSession={model.canStartLessonSession}
+                canExecuteLessonTick={model.lessonTickReady}
                 canEndSession={model.canEndSession}
                 playerSkaterPoolCount={model.playerSkaterPool.length}
                 startingSpotsCapacity={model.startingSpotsCapacity}
@@ -161,6 +165,8 @@ const Skatepark = () => {
                 onStartBeginnerSession={model.onStartBeginnerSession}
                 onStartNormalSession={model.onStartNormalSession}
                 onStartLessonSession={model.onStartLessonSession}
+                onEndLessonSession={model.onEndLessonSession}
+                onExecuteLessonTick={model.onExecuteLessonTick}
                 onEndSession={model.onEndSession}
               />
             ) : (

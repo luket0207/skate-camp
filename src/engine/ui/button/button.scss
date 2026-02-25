@@ -126,6 +126,18 @@
     }
   }
 
+  &--red {
+    background-color: $dangerBackground;
+    color: $dangerForeground;
+
+    &:visited,
+    &:hover,
+    &:active,
+    &:focus {
+      color: $dangerForeground;
+    }
+  }
+
   &--disabled {
     opacity: 0.5;
     cursor: not-allowed;

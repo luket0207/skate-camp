@@ -11,7 +11,12 @@ const Instructors = () => {
 
   const onHire = React.useCallback((instructor) => {
     if (hiredIds.has(instructor.id)) return;
-    setGameValue("player.instructors", [...hiredInstructors, instructor]);
+    const normalizedInstructor = {
+      ...instructor,
+      lessonSlotsBase: Number(instructor.lessonSlots || 0),
+      lessonSlotsRemaining: Number(instructor.lessonSlots || 0),
+    };
+    setGameValue("player.instructors", [...hiredInstructors, normalizedInstructor]);
   }, [hiredIds, hiredInstructors, setGameValue]);
 
   return (

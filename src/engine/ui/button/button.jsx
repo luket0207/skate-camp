@@ -53,6 +53,7 @@ export const BUTTON_VARIANT = Object.freeze({
   PRIMARY: "primary",
   SECONDARY: "secondary",
   TERTIARY: "tertiary",
+  RED: "red",
   IMAGE: "image",
 });
 

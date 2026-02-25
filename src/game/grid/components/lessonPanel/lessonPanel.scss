@@ -64,3 +64,48 @@
   font-size: 0.74rem;
   opacity: 0.84;
 }
+
+.lessonPanel__assignmentGrid {
+  display: grid;
+  gap: 0.35rem;
+
+  label {
+    display: grid;
+    gap: 0.2rem;
+    font-size: 0.74rem;
+    font-weight: 700;
+  }
+
+  select {
+    width: 100%;
+    border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    padding: 0.2rem 0.35rem;
+    font-size: 0.75rem;
+    background: rgba(255, 255, 255, 0.95);
+    color: $darkText;
+  }
+}
+
+.lessonPanel__lockedRow {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.lessonPanel__results {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.45rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.lessonPanel__resultItem {
+  font-size: 0.74rem;
+}
+
+.lessonPanel__historyCount {
+  font-size: 0.76rem;
+  opacity: 0.85;
+}

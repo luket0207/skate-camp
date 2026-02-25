@@ -7,6 +7,15 @@ import { MODAL_BUTTONS, useModal } from "../../../../engine/ui/modal/modalContex
 import { useToast } from "../../../../engine/ui/toast/toast";
 import Button, { BUTTON_VARIANT } from "../../../../engine/ui/button/button";
 import { generateBeginnerSkater, randomIntInclusive, shuffleItems, SKATER_SPORT } from "../../../skaters/skaterUtils";
+import { TRICK_TREES, TRICK_TYPES_BY_SPORT } from "../../../../assets/gameContent/tricks/trickTrees";
+import { buildTrickName, makeModifierKey } from "../../../skaters/trickNameUtils";
+import {
+  getMaxTypeCostBySport,
+  getNodeAvailability,
+  getTypeRatingsForSkater,
+  purchaseNode,
+  recalculateSkaterTypeRatings,
+} from "../../../skaters/trickLibraryUtils";
 import {
   MAX_GRID_SIZE,
   MIN_GRID_SIZE,
@@ -36,8 +45,8 @@ const SESSION_CLOCK_DEFAULT = {
 };
 const LESSON_CLOCK_DEFAULT = {
   totalTicks: LESSON_SESSION_TICKS,
-  ticksRemaining: LESSON_SESSION_TICKS - 1,
-  currentTick: 1,
+  ticksRemaining: LESSON_SESSION_TICKS,
+  currentTick: 0,
 };
 const DEFAULT_TIME_STATE = {
   dayNumber: 1,
@@ -111,6 +120,75 @@ const getInitialsFromName = (name) => {
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
 };
+
+const TYPE_KEYS = ["stall", "grind", "tech", "spin", "bigAir"];
+const SPORT_DIFFICULTY_KEY = {
+  [SKATER_SPORT.ROLLERBLADER]: "rollerblader",
+  [SKATER_SPORT.SKATEBOARDER]: "skateboarder",
+};
+const SWITCH_CHANCE_BY_RATING = {
+  1: 1,
+  2: 1,
+  3: 2,
+  4: 2,
+  5: 5,
+  6: 5,
+  7: 10,
+  8: 10,
+  9: 20,
+  10: 20,
+};
+const LESSON_RETRY_LAND_BONUS = {
+  0: 0,
+  1: 5,
+  2: 10,
+  3: 15,
+  4: 20,
+};
+const getLessonRetryLandBonus = (retryCount) => {
+  const safeRetryCount = Math.max(0, Number(retryCount) || 0);
+  if (safeRetryCount >= 5) return 25;
+  return LESSON_RETRY_LAND_BONUS[safeRetryCount] || 0;
+};
+
+const getSportDifficultyValue = (pieceDifficulty, sport, trickType) => {
+  const sportKey = SPORT_DIFFICULTY_KEY[sport] || SPORT_DIFFICULTY_KEY[SKATER_SPORT.SKATEBOARDER];
+  const raw = Number(pieceDifficulty?.[sportKey]?.[trickType]);
+  return Number.isFinite(raw) && raw > 0 ? raw : 0;
+};
+
+const getTypePercent = (skater, trickType) => {
+  const ratings = getTypeRatingsForSkater(skater);
+  const maxByType = getMaxTypeCostBySport(skater?.sport || SKATER_SPORT.SKATEBOARDER);
+  const rating = Number(ratings?.[trickType] || 0);
+  const max = Number(maxByType?.[trickType] || 1);
+  if (max <= 0) return 0;
+  return clamp(Math.round((rating / max) * 100), 0, 100);
+};
+
+const getPotentialForType = (skater, trickType) => {
+  const key = `${trickType}Potential`;
+  return clamp(Number(skater?.[key] || 0), 0, 100);
+};
+
+const getAttemptGapChance = (potential, currentPercent) => {
+  const gap = potential - currentPercent;
+  if (gap < 1) return { gap, chance: 0, mode: "blocked" };
+  if (gap < 6) return { gap, chance: 2, mode: "low" };
+  if (gap < 13) return { gap, chance: 5, mode: "low" };
+  return { gap, chance: null, mode: "normal" };
+};
+
+const getCoreNodeByName = (sport, trickType, coreName) =>
+  (TRICK_TREES?.[sport]?.[trickType] || []).find((node) => node.core === coreName);
+
+const getModifierNodeByKey = (coreNode, modifierKey) =>
+  (coreNode?.modifiers || []).find((node) => makeModifierKey({
+    parentVariant: node.parentVariant || node.name,
+    name: node.name,
+  }) === modifierKey);
+
+const getLearningCountKey = (skaterId, comboKey) => `${skaterId}|${comboKey}`;
 
 const getSkillLevel = (skater) => clamp(Number(skater?.skillLevel || 1), 1, 100);
 
@@ -209,6 +287,43 @@ const parseCoordinate = (coordinate) => {
   const row = rowChar.charCodeAt(0) - 65;
   const col = colRaw - 1;
   if (row < 0) return null;
+  return { row, col };
+};
+
+const normalizeInstructorLessonSlots = (instructor) => {
+  const base = Math.max(0, Number(instructor?.lessonSlotsBase ?? instructor?.lessonSlots ?? 0));
+  const remainingRaw = instructor?.lessonSlotsRemaining;
+  const remaining = remainingRaw === undefined || remainingRaw === null
+    ? base
+    : Math.max(0, Number(remainingRaw));
+
+  return {
+    ...instructor,
+    lessonSlotsBase: base,
+    lessonSlotsRemaining: Math.min(base, remaining),
+  };
+};
+
+const normalizeInstructorList = (instructors) => {
+  if (!Array.isArray(instructors)) return [];
+  let changed = false;
+  const normalized = instructors.map((instructor) => {
+    const next = normalizeInstructorLessonSlots(instructor);
+    const sameBase = Number(instructor?.lessonSlotsBase) === next.lessonSlotsBase;
+    const sameRemaining = Number(instructor?.lessonSlotsRemaining) === next.lessonSlotsRemaining;
+    if (sameBase && sameRemaining) return instructor;
+    changed = true;
+    return next;
+  });
+  return changed ? normalized : instructors;
+};
+
+const parseTileKey = (tileKey) => {
+  if (typeof tileKey !== "string") return null;
+  const [rowRaw, colRaw] = tileKey.split("-");
+  const row = Number(rowRaw);
+  const col = Number(colRaw);
+  if (!Number.isInteger(row) || !Number.isInteger(col)) return null;
   return { row, col };
 };
 
@@ -354,6 +469,8 @@ const LessonSetupModal = ({ instructors, skaters, maxInstructorCount, onStart })
   const canStart =
     selectedInstructorIds.length >= 1 &&
     selectedSkaterIds.length === selectedInstructorIds.length;
+  const getSlotsRemaining = (instructor) =>
+    Math.max(0, Number(instructor?.lessonSlotsRemaining ?? instructor?.lessonSlotsBase ?? instructor?.lessonSlots ?? 0));
   const availableInstructors = instructors.filter((item) => !selectedInstructorIds.includes(item.id));
   const inSessionInstructors = selectedInstructorIds
     .map((id) => instructors.find((item) => item.id === id))
@@ -380,9 +497,9 @@ const LessonSetupModal = ({ instructors, skaters, maxInstructorCount, onStart })
                   key={instructor.id}
                   variant={BUTTON_VARIANT.SECONDARY}
                   onClick={() => addInstructor(instructor.id)}
-                  disabled={selectedInstructorIds.length >= maxInstructorCount}
+                  disabled={selectedInstructorIds.length >= maxInstructorCount || getSlotsRemaining(instructor) < 1}
                 >
-                  + {instructor.name}
+                  + {instructor.name} ({getSlotsRemaining(instructor)} slots)
                 </Button>
               ))}
             </div>
@@ -398,7 +515,7 @@ const LessonSetupModal = ({ instructors, skaters, maxInstructorCount, onStart })
                   variant={BUTTON_VARIANT.PRIMARY}
                   onClick={() => removeInstructor(instructor.id)}
                 >
-                  - {instructor.name}
+                  - {instructor.name} ({getSlotsRemaining(instructor)} slots)
                 </Button>
               ))}
             </div>
@@ -454,6 +571,150 @@ const LessonSetupModal = ({ instructors, skaters, maxInstructorCount, onStart })
   );
 };
 
+const LessonFeedbackModal = ({ results }) => {
+  const entries = Array.isArray(results?.entries) ? results.entries : [];
+  const lowPotential = Array.isArray(results?.lowPotentialWarnings) ? results.lowPotentialWarnings : [];
+
+  return (
+    <div style={{ display: "grid", gap: "0.7rem", maxHeight: "60vh", overflowY: "auto" }}>
+      {lowPotential.length > 0 && (
+        <section style={{ display: "grid", gap: "0.35rem" }}>
+          <strong>Low Potential Alerts</strong>
+          {lowPotential.map((item) => (
+            <div key={item} style={{ fontSize: "0.82rem" }}>{item}</div>
+          ))}
+        </section>
+      )}
+      <section style={{ display: "grid", gap: "0.35rem" }}>
+        <strong>Lesson Results</strong>
+        {entries.length < 1 && <div style={{ fontSize: "0.82rem" }}>No lesson attempts recorded.</div>}
+        {entries.map((entry) => (
+          <div key={entry.id} style={{ fontSize: "0.8rem", border: "1px solid rgba(0,0,0,0.15)", borderRadius: "8px", padding: "0.45rem" }}>
+            T{entry.tick} | {entry.skaterName} with {entry.instructorName} on {entry.pieceLabel}
+            <br />
+            {entry.trickName} ({entry.trickType}) | {entry.status}
+            {entry.learned ? " | Learned" : ""}
+            {entry.retryLocked ? " | Retry Locked" : ""}
+            {entry.isSwitch ? " | Switch" : ""}
+          </div>
+        ))}
+      </section>
+    </div>
+  );
+};
+
+const chooseRandom = (items) => items[randomIntInclusive(0, items.length - 1)];
+
+const buildLessonTeachAttempt = ({
+  skater,
+  instructor,
+  target,
+  trickType,
+  maxCoreLevel,
+  lowGapMode = false,
+}) => {
+  const sport = skater?.sport || SKATER_SPORT.SKATEBOARDER;
+  const tree = TRICK_TREES?.[sport]?.[trickType] || [];
+  if (!Array.isArray(tree) || tree.length < 1) return null;
+
+  const targetPieces = Array.isArray(target?.runPieces) ? target.runPieces : [];
+  const teachablePieces = targetPieces
+    .map((piece) => ({
+      piece,
+      difficulty: getSportDifficultyValue(piece?.difficulty, sport, trickType),
+    }))
+    .filter((item) => item.difficulty > 0);
+  if (teachablePieces.length < 1) return null;
+
+  const library = Array.isArray(skater?.trickLibrary) ? skater.trickLibrary : [];
+  const instructorCoreCap = clamp(Number(instructor?.coreRating || 1), 1, 5);
+  const instructorVariantCap = clamp(Number(instructor?.variantRating || 1), 1, 5);
+  const explicitCap = maxCoreLevel ? clamp(Number(maxCoreLevel), 1, 5) : null;
+
+  let coreCandidates = [];
+  tree.forEach((coreNode) => {
+    const coreLevel = Number(coreNode?.level || 1);
+    if (coreLevel > instructorCoreCap) return;
+    if (explicitCap != null && coreLevel > explicitCap) return;
+    const availability = getNodeAvailability(library, trickType, coreNode, null, sport);
+    if (!availability?.available) return;
+    coreCandidates.push({ kind: "core", coreNode, level: coreLevel });
+  });
+
+  let modifierCandidates = [];
+  (library || []).filter((entry) => entry.type === trickType).forEach((entry) => {
+    const coreNode = getCoreNodeByName(sport, trickType, entry.core);
+    if (!coreNode) return;
+    (coreNode.modifiers || []).forEach((modifierNode) => {
+      const modifierLevel = Number(modifierNode?.level || 1);
+      if (modifierLevel > instructorVariantCap) return;
+      if (explicitCap != null && modifierLevel > explicitCap) return;
+      const availability = getNodeAvailability(library, trickType, coreNode, modifierNode, sport);
+      if (!availability?.available) return;
+      modifierCandidates.push({
+        kind: "modifier",
+        coreNode,
+        modifierNode,
+        level: modifierLevel,
+      });
+    });
+  });
+
+  if (coreCandidates.length < 1 && modifierCandidates.length < 1) return null;
+
+  if (explicitCap == null && coreCandidates.length > 0) {
+    const highestCoreLevel = Math.max(...coreCandidates.map((item) => item.level));
+    coreCandidates = coreCandidates.filter((item) => item.level === highestCoreLevel);
+  }
+
+  const chooseCore = modifierCandidates.length < 1
+    ? true
+    : coreCandidates.length < 1
+      ? false
+      : randomIntInclusive(1, 100) <= 40;
+
+  const selected = chooseCore
+    ? chooseRandom(coreCandidates)
+    : chooseRandom(modifierCandidates);
+  if (!selected) return null;
+
+  const chosenPiece = chooseRandom(teachablePieces);
+  const isModifier = selected.kind === "modifier";
+  const modifiers = isModifier
+    ? [{
+      kind: selected.modifierNode.kind,
+      name: selected.modifierNode.name,
+      level: Number(selected.modifierNode.level || 1),
+      cost: Number(selected.modifierNode.cost || selected.modifierNode.level || 1),
+      placement: selected.modifierNode.placement,
+      parentVariant: selected.modifierNode.parentVariant || selected.modifierNode.name,
+      lockedBy: selected.modifierNode.lockedBy || null,
+    }]
+    : [];
+  const coreLevel = Number(selected.coreNode?.level || 1);
+  const variantLevel = isModifier ? Number(selected.modifierNode?.level || 0) : 0;
+  const trickName = buildTrickName(selected.coreNode.core, modifiers);
+  const modifierKey = isModifier ? makeModifierKey(modifiers[0]) : "";
+  const comboKey = `${trickType}|${selected.coreNode.core}|${modifierKey}`;
+
+  return {
+    trickType,
+    coreName: selected.coreNode.core,
+    coreLevel,
+    variantLevel,
+    modifier: modifiers[0] || null,
+    modifierKey: modifierKey || null,
+    trickName,
+    comboKey,
+    pieceName: chosenPiece.piece.name,
+    pieceCoordinate: chosenPiece.piece.coordinate,
+    pieceDifficulty: chosenPiece.difficulty,
+    pieceLabel: `${chosenPiece.piece.name}${chosenPiece.piece.coordinate ? ` (${chosenPiece.piece.coordinate})` : ""}`,
+    lowGapMode,
+    isCore: !isModifier,
+  };
+};
+
 const createDefaultSessionState = () => ({
   isActive: false,
   isTickRunning: false,
@@ -477,6 +738,11 @@ const createDefaultSessionState = () => ({
     selectedSkaterIds: [],
     selectedSkaterByInstructor: {},
     placementsByInstructor: {},
+    tickAssignmentsByInstructor: {},
+    lockedRetriesByInstructor: {},
+    attemptEntries: [],
+    lowPotentialWarnings: [],
+    pendingTickEntries: [],
   },
   clock: SESSION_CLOCK_DEFAULT,
 });
@@ -502,7 +768,12 @@ export const useGridModel = () => {
     Array.isArray(gameState?.player?.skaterPool) ? gameState.player.skaterPool : []
   );
   const [playerInstructors, setPlayerInstructors] = useState(() =>
-    Array.isArray(gameState?.player?.instructors) ? gameState.player.instructors : []
+    normalizeInstructorList(gameState?.player?.instructors)
+  );
+  const [playerLessonLandingCounts, setPlayerLessonLandingCounts] = useState(() =>
+    gameState?.player?.lessonLandingCounts && typeof gameState.player.lessonLandingCounts === "object"
+      ? gameState.player.lessonLandingCounts
+      : {}
   );
   const [skatepark, setSkatepark] = useState(() => (Array.isArray(gameState.skatepark) ? gameState.skatepark : []));
   const [timeState, setTimeState] = useState(() => normalizeTimeState(gameState?.time));
@@ -524,9 +795,18 @@ export const useGridModel = () => {
   }, [playerInstructors, setGameValue]);
 
   useEffect(() => {
+    setGameValue("player.lessonLandingCounts", playerLessonLandingCounts);
+  }, [playerLessonLandingCounts, setGameValue]);
+
+  useEffect(() => {
     const source = Array.isArray(gameState?.player?.instructors) ? gameState.player.instructors : [];
-    setPlayerInstructors(source);
+    setPlayerInstructors(normalizeInstructorList(source));
   }, [gameState?.player?.instructors]);
+
+  useEffect(() => {
+    const source = gameState?.player?.lessonLandingCounts;
+    setPlayerLessonLandingCounts(source && typeof source === "object" ? source : {});
+  }, [gameState?.player?.lessonLandingCounts]);
 
   useEffect(() => {
     setGameValue("skateparkConfig.gridSize", gridSize);
@@ -683,6 +963,13 @@ export const useGridModel = () => {
         label: `${item.name} (${toCoordinate(item.topLeft.row, item.topLeft.col)})`,
         type: "Standalone",
         tileKeys: item.tiles.map((tile) => makeTileKey(tile.row, tile.col)),
+        runPieces: [
+          {
+            name: item.name,
+            coordinate: toCoordinate(item.topLeft.row, item.topLeft.col),
+            difficulty: item.difficulty || null,
+          },
+        ],
       });
     });
     committedRoutes.forEach((route) => {
@@ -691,6 +978,11 @@ export const useGridModel = () => {
         label: `${route.name}`,
         type: "Route",
         tileKeys: route.pieces.map((piece) => makeTileKey(piece.row, piece.col)),
+        runPieces: route.pieces.map((piece) => ({
+          name: piece.name,
+          coordinate: piece.coordinates,
+          difficulty: piece.difficulty || null,
+        })),
       });
     });
     return targets;
@@ -701,6 +993,12 @@ export const useGridModel = () => {
     lessonTargets.forEach((target) => {
       target.tileKeys.forEach((tileKey) => map.set(tileKey, target));
     });
+    return map;
+  }, [lessonTargets]);
+
+  const lessonTargetById = useMemo(() => {
+    const map = new Map();
+    lessonTargets.forEach((target) => map.set(target.targetId, target));
     return map;
   }, [lessonTargets]);
 
@@ -759,6 +1057,10 @@ export const useGridModel = () => {
     [committedRoutes.length, placedStandalone.length]
   );
   const lessonSlotCapacity = useMemo(() => lessonTargets.length, [lessonTargets.length]);
+  const availableLessonInstructors = useMemo(
+    () => playerInstructors.filter((instructor) => Number(instructor?.lessonSlotsRemaining ?? 0) > 0),
+    [playerInstructors]
+  );
 
   const canStartBeginnerSession = useMemo(() => {
     if (!hasAnySkateparkPiece) return false;
@@ -782,13 +1084,13 @@ export const useGridModel = () => {
       hasSessionAvailableToday &&
       !sessionState.isActive &&
       playerSkaterPool.length > 0 &&
-      playerInstructors.length > 0 &&
+      availableLessonInstructors.length > 0 &&
       lessonSlotCapacity > 0,
     [
+      availableLessonInstructors.length,
       hasAnySkateparkPiece,
       hasSessionAvailableToday,
       lessonSlotCapacity,
-      playerInstructors.length,
       playerSkaterPool.length,
       sessionState.isActive,
     ]
@@ -864,6 +1166,32 @@ export const useGridModel = () => {
       .filter(Boolean);
   }, [playerSkaterPool, sessionState.lesson?.selectedSkaterIds]);
 
+  const lessonTickReady = useMemo(() => {
+    if (gridMode !== "session" || sessionState.sessionType !== "lesson") return false;
+    if (sessionState.isTickRunning) return false;
+    if (sessionState.lesson?.isPlacementPhase) return false;
+    if (sessionState.currentTick >= sessionState.maxTicks) return false;
+    const instructorIds = sessionState.lesson?.selectedInstructorIds || [];
+    const lockedByInstructor = sessionState.lesson?.lockedRetriesByInstructor || {};
+    const assignments = sessionState.lesson?.tickAssignmentsByInstructor || {};
+    if (instructorIds.length < 1) return false;
+
+    const usedSkaters = new Set();
+    for (const instructorId of instructorIds) {
+      const locked = lockedByInstructor[instructorId];
+      if (locked?.skaterId) {
+        if (usedSkaters.has(locked.skaterId)) return false;
+        usedSkaters.add(locked.skaterId);
+        continue;
+      }
+      const plan = assignments[instructorId];
+      if (!plan?.skaterId || !plan?.trickType) return false;
+      if (usedSkaters.has(plan.skaterId)) return false;
+      usedSkaters.add(plan.skaterId);
+    }
+    return true;
+  }, [gridMode, sessionState.currentTick, sessionState.isTickRunning, sessionState.lesson, sessionState.maxTicks, sessionState.sessionType]);
+
   const lessonHighlightTileKeys = useMemo(() => {
     if (gridMode !== "session" || sessionState.sessionType !== "lesson") return new Set();
     if (!sessionState.lesson?.isPlacementPhase || !sessionState.lesson?.activePlacementInstructorId) return new Set();
@@ -878,6 +1206,39 @@ export const useGridModel = () => {
     });
     return keys;
   }, [gridMode, lessonTargets, sessionState.lesson, sessionState.sessionType]);
+
+  const lessonTrickTypeOptionsByInstructor = useMemo(() => {
+    const result = {};
+    if (gridMode !== "session" || sessionState.sessionType !== "lesson") return result;
+
+    const selectedInstructorIds = sessionState.lesson?.selectedInstructorIds || [];
+    const lockedByInstructor = sessionState.lesson?.lockedRetriesByInstructor || {};
+    const tickAssignments = sessionState.lesson?.tickAssignmentsByInstructor || {};
+    const selectedSkaterByInstructor = sessionState.lesson?.selectedSkaterByInstructor || {};
+
+    selectedInstructorIds.forEach((instructorId) => {
+      const placement = sessionState.lesson?.placementsByInstructor?.[instructorId];
+      const target = placement ? lessonTargetById.get(placement.targetId) : null;
+      if (!target) {
+        result[instructorId] = [];
+        return;
+      }
+
+      const locked = lockedByInstructor[instructorId];
+      const assignment = tickAssignments[instructorId];
+      const fallbackSkaterId = selectedSkaterByInstructor[instructorId];
+      const activeSkaterId = locked?.skaterId || assignment?.skaterId || fallbackSkaterId || null;
+      const skater = sessionState.skaters.find((item) => item.id === activeSkaterId);
+      const sport = skater?.sport || SKATER_SPORT.SKATEBOARDER;
+
+      const availableTypes = TYPE_KEYS.filter((typeKey) =>
+        (target.runPieces || []).some((piece) => getSportDifficultyValue(piece?.difficulty, sport, typeKey) > 0)
+      );
+      result[instructorId] = availableTypes;
+    });
+
+    return result;
+  }, [gridMode, lessonTargetById, sessionState.lesson, sessionState.sessionType, sessionState.skaters]);
 
   const occupancy = useMemo(() => {
     const map = new Map();
@@ -1218,7 +1579,7 @@ export const useGridModel = () => {
 
         setSessionState((prev) => ({
           ...prev,
-          isActive: !isPlacementComplete,
+          isActive: true,
           lesson: {
             ...prev.lesson,
             placementsByInstructor: nextPlacements,
@@ -1389,8 +1750,18 @@ export const useGridModel = () => {
   );
 
   const animateSkaterOnTarget = useCallback(async (skaterId, target) => {
-    const routeTiles = target.type === "Route" ? target.runTiles : shuffleItems(target.runTiles);
-    const tiles = routeTiles.length > 0 ? routeTiles : [target.startCell];
+    const runTiles = Array.isArray(target?.runTiles) ? target.runTiles : [];
+    const keyTiles = Array.isArray(target?.tileKeys)
+      ? target.tileKeys.map(parseTileKey).filter(Boolean)
+      : [];
+    const startCell = target?.startCell && Number.isInteger(target.startCell.row) && Number.isInteger(target.startCell.col)
+      ? [target.startCell]
+      : [];
+
+    const baseTiles = runTiles.length > 0 ? runTiles : keyTiles.length > 0 ? keyTiles : startCell;
+    const orderedTiles = target?.type === "Route" ? baseTiles : shuffleItems(baseTiles);
+    const tiles = orderedTiles.length > 0 ? orderedTiles : [];
+    if (tiles.length < 1) return;
     const waitMs = RUN_DURATION_MS / Math.max(1, tiles.length);
 
     for (const tile of tiles) {
@@ -1486,17 +1857,18 @@ export const useGridModel = () => {
     if (!hasAnySkateparkPiece) return warning("Place at least one piece in the skatepark before starting a session.");
     if (!hasSessionAvailableToday) return warning("You can only hold one session per day.");
     if (playerInstructors.length < 1) return warning("Hire at least one instructor first.");
+    if (availableLessonInstructors.length < 1) return warning("No instructors have lesson slots remaining this week.");
     if (playerSkaterPool.length < 1) return warning("Add at least one skater to your pool first.");
     if (lessonSlotCapacity < 1) return warning("No lesson placement targets are available in this skatepark.");
     if (!canStartLessonSession) return warning("Lesson session is not available right now.");
 
-    const maxInstructorCount = Math.min(lessonSlotCapacity, playerInstructors.length);
+    const maxInstructorCount = Math.min(lessonSlotCapacity, availableLessonInstructors.length);
     openModal({
       modalTitle: "Setup Lesson Session",
       buttons: MODAL_BUTTONS.NONE,
       modalContent: (
         <LessonSetupModal
-          instructors={playerInstructors}
+          instructors={availableLessonInstructors}
           skaters={playerSkaterPool}
           maxInstructorCount={maxInstructorCount}
           onStart={(selectedInstructorIds, selectedSkaterIds) => {
@@ -1510,7 +1882,7 @@ export const useGridModel = () => {
             setSessionState({
               ...createDefaultSessionState(),
               isActive: true,
-              currentTick: 1,
+              currentTick: 0,
               maxTicks: LESSON_SESSION_TICKS,
               sessionType: "lesson",
               skaters: selectedSkaterIds
@@ -1534,6 +1906,7 @@ export const useGridModel = () => {
       ),
     });
   }, [
+    availableLessonInstructors,
     canStartLessonSession,
     closeModal,
     editingRoute,
@@ -1541,7 +1914,7 @@ export const useGridModel = () => {
     hasSessionAvailableToday,
     lessonSlotCapacity,
     openModal,
-    playerInstructors,
+    playerInstructors.length,
     playerSkaterPool,
     success,
     warning,
@@ -1560,6 +1933,445 @@ export const useGridModel = () => {
       },
     }));
   }, [gridMode, sessionState.lesson, sessionState.sessionType]);
+
+  const onUpdateLessonTickAssignment = useCallback((instructorId, patch) => {
+    if (gridMode !== "session" || sessionState.sessionType !== "lesson") return;
+    if (sessionState.lesson?.isPlacementPhase) return;
+
+    setSessionState((prev) => {
+      const lockedByInstructor = prev.lesson?.lockedRetriesByInstructor || {};
+      if (lockedByInstructor[instructorId]) return prev;
+
+      const nextAssignments = {
+        ...(prev.lesson?.tickAssignmentsByInstructor || {}),
+        [instructorId]: {
+          ...(prev.lesson?.tickAssignmentsByInstructor?.[instructorId] || {}),
+          ...patch,
+        },
+      };
+
+      const nextPlan = nextAssignments[instructorId];
+      if (nextPlan?.skaterId) {
+        const usedSkaterIds = new Set(
+          Object.entries(lockedByInstructor)
+            .filter(([id]) => id !== instructorId)
+            .map(([, value]) => value.skaterId)
+        );
+        Object.entries(nextAssignments)
+          .filter(([id]) => id !== instructorId)
+          .forEach(([, value]) => {
+            if (value?.skaterId) usedSkaterIds.add(value.skaterId);
+          });
+        if (usedSkaterIds.has(nextPlan.skaterId)) {
+          return prev;
+        }
+      }
+
+      return {
+        ...prev,
+        lesson: {
+          ...prev.lesson,
+          tickAssignmentsByInstructor: nextAssignments,
+        },
+      };
+    });
+  }, [gridMode, sessionState.lesson?.isPlacementPhase, sessionState.sessionType]);
+
+  const onRandomizeLessonTickAssignments = useCallback(() => {
+    if (gridMode !== "session" || sessionState.sessionType !== "lesson") return;
+    if (sessionState.lesson?.isPlacementPhase) return;
+    if (sessionState.isTickRunning) return;
+
+    setSessionState((prev) => {
+      const selectedInstructorIds = prev.lesson?.selectedInstructorIds || [];
+      const lockedByInstructor = prev.lesson?.lockedRetriesByInstructor || {};
+      const currentAssignments = prev.lesson?.tickAssignmentsByInstructor || {};
+
+      const usedSkaterIds = new Set(
+        Object.values(lockedByInstructor)
+          .map((item) => item?.skaterId)
+          .filter(Boolean)
+      );
+
+      selectedInstructorIds.forEach((instructorId) => {
+        const assignment = currentAssignments[instructorId];
+        if (assignment?.skaterId) usedSkaterIds.add(assignment.skaterId);
+      });
+
+      const availableSkaterIds = shuffleItems(
+        (prev.lesson?.selectedSkaterIds || []).filter((skaterId) => !usedSkaterIds.has(skaterId))
+      );
+
+      const nextAssignments = { ...currentAssignments };
+
+      selectedInstructorIds.forEach((instructorId) => {
+        if (lockedByInstructor[instructorId]) return;
+
+        const current = nextAssignments[instructorId] || {};
+        let nextSkaterId = current.skaterId || null;
+        let nextTrickType = current.trickType || null;
+
+        if (!nextSkaterId && availableSkaterIds.length > 0) {
+          nextSkaterId = availableSkaterIds.pop() || null;
+        }
+
+        if (!nextTrickType) {
+          const allowedTypes = lessonTrickTypeOptionsByInstructor?.[instructorId] || [];
+          if (allowedTypes.length > 0) {
+            nextTrickType = allowedTypes[randomIntInclusive(0, allowedTypes.length - 1)];
+          }
+        }
+
+        nextAssignments[instructorId] = {
+          ...current,
+          skaterId: nextSkaterId,
+          trickType: nextTrickType,
+        };
+      });
+
+      return {
+        ...prev,
+        lesson: {
+          ...prev.lesson,
+          tickAssignmentsByInstructor: nextAssignments,
+        },
+      };
+    });
+  }, [gridMode, lessonTrickTypeOptionsByInstructor, sessionState.isTickRunning, sessionState.lesson?.isPlacementPhase, sessionState.sessionType]);
+
+  const onExecuteLessonTick = useCallback(async () => {
+    if (!lessonTickReady) {
+      warning("Assign all instructors before starting the tick.");
+      return;
+    }
+    if (gridMode !== "session" || sessionState.sessionType !== "lesson") return;
+    if (sessionState.lesson?.isPlacementPhase) return;
+    if (sessionState.currentTick >= sessionState.maxTicks) return;
+
+    const nextTick = sessionState.currentTick + 1;
+    const selectedInstructorIds = sessionState.lesson?.selectedInstructorIds || [];
+    const lockedByInstructor = sessionState.lesson?.lockedRetriesByInstructor || {};
+    const assignments = sessionState.lesson?.tickAssignmentsByInstructor || {};
+
+    let nextPool = [...playerSkaterPool];
+    const nextLandingCounts = { ...playerLessonLandingCounts };
+    const tickEntries = [];
+    const nextLocked = {};
+    const nextPositions = {};
+    const animationPlans = [];
+    const lowWarnings = [...(sessionState.lesson?.lowPotentialWarnings || [])];
+
+    setSessionState((prev) => ({
+      ...prev,
+      isTickRunning: true,
+      lesson: {
+        ...prev.lesson,
+        pendingTickEntries: [],
+      },
+    }));
+
+    selectedInstructorIds.forEach((instructorId) => {
+      const instructor = playerInstructors.find((item) => item.id === instructorId);
+      const placement = sessionState.lesson?.placementsByInstructor?.[instructorId];
+      const target = placement ? lessonTargetById.get(placement.targetId) : null;
+      const locked = lockedByInstructor[instructorId] || null;
+      const plan = locked || assignments[instructorId];
+      const skater = nextPool.find((item) => item.id === plan?.skaterId);
+      const targetLabel = target?.label || "Unplaced";
+
+      if (!instructor || !placement || !target || !plan || !skater) {
+        tickEntries.push({
+          id: `lesson-${nextTick}-${instructorId}-${Math.random().toString(16).slice(2, 8)}`,
+          tick: nextTick,
+          instructorId,
+          instructorName: instructor?.name || "Unknown Instructor",
+          skaterId: skater?.id || null,
+          skaterName: skater?.name || "Unassigned Skater",
+          pieceLabel: targetLabel,
+          trickType: plan?.trickType || null,
+          trickName: "No Attempt",
+          status: "Failed Setup",
+          learned: false,
+          retryLocked: false,
+          isSwitch: false,
+        });
+        return;
+      }
+
+      nextPositions[skater.id] = { row: placement.row, col: placement.col };
+
+      let attempt = locked?.attempt || null;
+      const retryCount = Math.max(0, Number(locked?.retryCount) || 0);
+      if (!attempt) {
+        const requestedType = plan?.trickType;
+        if (!requestedType || !TYPE_KEYS.includes(requestedType)) {
+          tickEntries.push({
+            id: `lesson-${nextTick}-${instructorId}-${Math.random().toString(16).slice(2, 8)}`,
+            tick: nextTick,
+            instructorId,
+            instructorName: instructor.name,
+            skaterId: skater.id,
+            skaterName: skater.name,
+            pieceLabel: targetLabel,
+            trickType: requestedType || null,
+            trickName: "No Attempt",
+            status: "No Trick Type Selected",
+            learned: false,
+            retryLocked: false,
+            isSwitch: false,
+          });
+          return;
+        }
+
+        let selectedAttempt = null;
+        let forceBlockedByGap = false;
+        for (let i = 0; i < 10; i += 1) {
+          const candidate = buildLessonTeachAttempt({
+            skater,
+            instructor,
+            target,
+            trickType: requestedType,
+            maxCoreLevel: plan?.maxCoreLevel || null,
+          });
+          if (!candidate) break;
+          const currentPercent = getTypePercent(skater, requestedType);
+          const potential = getPotentialForType(skater, requestedType);
+          const gapInfo = getAttemptGapChance(potential, currentPercent);
+          candidate.currentPercent = currentPercent;
+          candidate.potential = potential;
+          candidate.gap = gapInfo.gap;
+          candidate.gapMode = gapInfo.mode;
+          candidate.baseGapChance = gapInfo.chance;
+          if (gapInfo.gap <= 5) {
+            selectedAttempt = candidate;
+            forceBlockedByGap = true;
+            continue;
+          }
+          selectedAttempt = candidate;
+          forceBlockedByGap = false;
+          break;
+        }
+        attempt = selectedAttempt;
+        if (forceBlockedByGap && attempt) {
+          attempt.baseGapChance = 0;
+          const msg = `${skater.name} (${attempt.trickType}) has too little potential gap (${attempt.gap}).`;
+          if (!lowWarnings.includes(msg)) lowWarnings.push(msg);
+        }
+      }
+
+      if (!attempt) {
+        tickEntries.push({
+          id: `lesson-${nextTick}-${instructorId}-${Math.random().toString(16).slice(2, 8)}`,
+          tick: nextTick,
+          instructorId,
+          instructorName: instructor.name,
+          skaterId: skater.id,
+          skaterName: skater.name,
+          pieceLabel: targetLabel,
+          trickType: plan?.trickType || null,
+          trickName: "No Attempt",
+          status: "No Teachable Trick",
+          learned: false,
+          retryLocked: false,
+          isSwitch: false,
+        });
+        return;
+      }
+
+      const sw = clamp(Number(skater.switchRating || 1), 1, 10);
+      const swPotential = clamp(Number(skater.switchPotential || 1), 1, 10);
+      const canSwitch = sw < swPotential;
+      const switchChance = canSwitch ? (SWITCH_CHANCE_BY_RATING[sw] || 0) : 0;
+      const isSwitch = switchChance > 0 && randomIntInclusive(1, 100) <= switchChance;
+
+      const str = clamp(Number(attempt.currentPercent ?? getTypePercent(skater, attempt.trickType)), 0, 100);
+      const ptr = clamp(Number(attempt.potential ?? getPotentialForType(skater, attempt.trickType)), 0, 100);
+      const gapInfo = getAttemptGapChance(ptr, str);
+      if (gapInfo.gap < 10) {
+        const msg = `${skater.name} (${attempt.trickType}) has low learning headroom (gap ${gapInfo.gap}).`;
+        if (!lowWarnings.includes(msg)) lowWarnings.push(msg);
+      }
+      const itr = clamp(Number(instructor?.ratings?.[attempt.trickType] || 1), 1, 100);
+      const sd = clamp(Number(skater?.determination || 1), 1, 100);
+      const id = clamp(Number(instructor?.determination || 1), 1, 100);
+      const isw = clamp(Number(instructor?.switchRating || 1), 1, 10);
+      const td = attempt.variantLevel > 0 ? attempt.variantLevel : attempt.coreLevel;
+      let d = Math.max(0, (Math.max(1, td) * Math.max(1, Number(attempt.pieceDifficulty || 1))) * 10);
+      if (isSwitch) {
+        d += Math.max(0, 200 - ((sw + isw) * 10));
+      }
+
+      const rawSc = (str * 3) + (itr * 3) + sd;
+      const sc = clamp(rawSc, 0, 500);
+      let landChance = 0;
+      if (gapInfo.mode === "blocked") {
+        landChance = 0;
+      } else if (gapInfo.mode === "low") {
+        landChance = gapInfo.chance || 0;
+      } else {
+        const adjusted = clamp(sc - d, 0, 500);
+        landChance = clamp(25 + Math.round(adjusted / 10), 25, 75);
+      }
+
+      const retryBonus = getLessonRetryLandBonus(retryCount);
+      const adjustedLandChance = clamp(landChance + retryBonus, 0, 100);
+      const landed = randomIntInclusive(1, 100) <= adjustedLandChance;
+      let learned = false;
+
+      if (landed) {
+        if (isSwitch && sw < swPotential) {
+          nextPool = nextPool.map((item) =>
+            item.id === skater.id
+              ? { ...item, switchRating: clamp(Number(item.switchRating || 1) + 1, 1, 10) }
+              : item
+          );
+        }
+
+        const countKey = getLearningCountKey(skater.id, attempt.comboKey);
+        const nextCount = (Number(nextLandingCounts[countKey]) || 0) + 1;
+        nextLandingCounts[countKey] = nextCount;
+
+        const requiredLands = Math.max(1, Number(attempt.coreLevel || 1));
+        if (nextCount >= requiredLands) {
+          const currentSkater = nextPool.find((item) => item.id === skater.id) || skater;
+          const coreNode = getCoreNodeByName(currentSkater.sport, attempt.trickType, attempt.coreName);
+          const modifierNode = attempt.modifierKey
+            ? getModifierNodeByKey(coreNode, attempt.modifierKey)
+            : null;
+          if (coreNode) {
+            const purchaseResult = purchaseNode({
+              trickLibrary: currentSkater.trickLibrary || [],
+              type: attempt.trickType,
+              coreNode,
+              modifierNode,
+              sport: currentSkater.sport,
+            });
+            if (purchaseResult.success) {
+              learned = true;
+              nextPool = nextPool.map((item) => {
+                if (item.id !== skater.id) return item;
+                const withLibrary = {
+                  ...item,
+                  trickLibrary: purchaseResult.trickLibrary,
+                };
+                return {
+                  ...withLibrary,
+                  ...recalculateSkaterTypeRatings(withLibrary),
+                };
+              });
+            }
+          }
+        }
+      }
+
+      const retryChanceBase = landed ? Math.ceil((sd + id) / 2) : Math.ceil((sd + id) / 3);
+      const retryChance = clamp(retryChanceBase, 0, 100);
+      const retryLocked = !learned && nextTick < sessionState.maxTicks && randomIntInclusive(1, 100) <= retryChance;
+      if (retryLocked) {
+        nextLocked[instructorId] = {
+          skaterId: skater.id,
+          trickType: attempt.trickType,
+          maxCoreLevel: plan?.maxCoreLevel || null,
+          attempt,
+          retryCount: retryCount + 1,
+        };
+      }
+
+      tickEntries.push({
+        id: `lesson-${nextTick}-${instructorId}-${Math.random().toString(16).slice(2, 8)}`,
+        tick: nextTick,
+        instructorId,
+        instructorName: instructor.name,
+        skaterId: skater.id,
+        skaterName: skater.name,
+        pieceLabel: attempt.pieceLabel || targetLabel,
+        trickType: attempt.trickType,
+        trickName: attempt.trickName,
+        status: learned ? "Learned" : landed ? "Landed" : "Bailed",
+        landed,
+        learned,
+        retryLocked,
+        retryCount,
+        retryBonus,
+        retryChance,
+        landChance: adjustedLandChance,
+        gap: gapInfo.gap,
+        isSwitch,
+      });
+
+      if (target && !animationPlans.some((item) => item.skaterId === skater.id)) {
+        animationPlans.push({
+          skaterId: skater.id,
+          target,
+          trickName: attempt?.trickName || null,
+        });
+      }
+    });
+
+    setPlayerSkaterPool(nextPool);
+    setPlayerLessonLandingCounts(nextLandingCounts);
+
+    for (const plan of animationPlans) {
+      if (plan.trickName) {
+        setSessionState((prev) => ({
+          ...prev,
+          activeRunTricks: {
+            ...prev.activeRunTricks,
+            [plan.skaterId]: plan.trickName,
+          },
+        }));
+      }
+      await animateSkaterOnTarget(plan.skaterId, plan.target);
+      if (plan.trickName) {
+        setSessionState((prev) => {
+          const nextActive = { ...prev.activeRunTricks };
+          delete nextActive[plan.skaterId];
+          return {
+            ...prev,
+            activeRunTricks: nextActive,
+          };
+        });
+      }
+    }
+
+    setSessionState((prev) => ({
+      ...prev,
+      isTickRunning: false,
+      isActive: nextTick < prev.maxTicks,
+      currentTick: nextTick,
+      skaterPositions: nextPositions,
+      activeRunTricks: {},
+      clock: {
+        totalTicks: prev.maxTicks,
+        currentTick: nextTick,
+        ticksRemaining: Math.max(0, prev.maxTicks - nextTick),
+      },
+      lesson: {
+        ...prev.lesson,
+        tickAssignmentsByInstructor: {},
+        lockedRetriesByInstructor: nextLocked,
+        pendingTickEntries: tickEntries,
+        attemptEntries: [...(prev.lesson?.attemptEntries || []), ...tickEntries],
+        lowPotentialWarnings: lowWarnings,
+      },
+    }));
+
+    info(`Lesson tick ${nextTick}/${sessionState.maxTicks} completed.`);
+  }, [
+    animateSkaterOnTarget,
+    gridMode,
+    info,
+    lessonTargetById,
+    lessonTickReady,
+    playerInstructors,
+    playerLessonLandingCounts,
+    playerSkaterPool,
+    sessionState.currentTick,
+    sessionState.lesson,
+    sessionState.maxTicks,
+    sessionState.sessionType,
+    warning,
+  ]);
 
   const onGoToEditMode = useCallback(() => {
     if (sessionState.isActive) return warning("Cannot edit skatepark while a session is active.");
@@ -1603,7 +2415,7 @@ export const useGridModel = () => {
     () => {
       if (gridMode !== "session" || sessionState.isTickRunning) return false;
       if (sessionState.sessionType === "lesson") {
-        return !sessionState.lesson?.isPlacementPhase;
+        return !sessionState.lesson?.isPlacementPhase && sessionState.currentTick >= sessionState.maxTicks;
       }
       return !sessionState.isActive && sessionState.currentTick >= sessionState.maxTicks;
     },
@@ -1657,7 +2469,9 @@ export const useGridModel = () => {
       sessionType: sessionState.sessionType,
       ticks: sessionState.currentTick,
       skaterCount: sessionState.skaters.length,
-      attempts: sessionState.trickAttempts.length,
+      attempts: sessionState.sessionType === "lesson"
+        ? (sessionState.lesson?.attemptEntries || []).length
+        : sessionState.trickAttempts.length,
       recruitedSkaterIds: sessionState.recruitedSkaterIds,
     };
 
@@ -1670,6 +2484,32 @@ export const useGridModel = () => {
         sessionsCompleted: prev.sessionsCompleted + 1,
         sessionHistory: [...prev.sessionHistory, sessionSummary],
       };
+    });
+
+    setPlayerInstructors((prev) => {
+      let next = normalizeInstructorList(prev);
+
+      if (sessionState.sessionType === "lesson") {
+        const participatingIds = new Set(sessionState.lesson?.selectedInstructorIds || []);
+        next = next.map((instructor) => {
+          if (!participatingIds.has(instructor.id)) return instructor;
+          return {
+            ...instructor,
+            lessonSlotsRemaining: Math.max(0, Number(instructor.lessonSlotsRemaining || 0) - 1),
+          };
+        });
+      }
+
+      const nextDayNumber = completedDayNumber + 1;
+      const nextDayName = DAY_NAMES[(nextDayNumber - 1) % DAYS_PER_WEEK];
+      if (nextDayName === "Wed") {
+        next = next.map((instructor) => ({
+          ...instructor,
+          lessonSlotsRemaining: Number(instructor.lessonSlotsBase || 0),
+        }));
+      }
+
+      return next;
     });
 
     setGridMode("edit");
@@ -1687,8 +2527,37 @@ export const useGridModel = () => {
       warning("Place all instructors before ending the lesson session.");
       return;
     }
-    onEndSession();
-  }, [gridMode, onEndSession, sessionState.lesson, sessionState.sessionType, warning]);
+    if (!canEndSession) {
+      warning("Complete all lesson ticks before ending the session.");
+      return;
+    }
+
+    openModal({
+      modalTitle: "Lesson Session Feedback",
+      buttons: MODAL_BUTTONS.OK,
+      modalContent: (
+        <LessonFeedbackModal
+          results={{
+            entries: sessionState.lesson?.attemptEntries || [],
+            lowPotentialWarnings: sessionState.lesson?.lowPotentialWarnings || [],
+          }}
+        />
+      ),
+      onClick: () => {
+        closeModal();
+        onEndSession();
+      },
+    });
+  }, [
+    canEndSession,
+    closeModal,
+    gridMode,
+    onEndSession,
+    openModal,
+    sessionState.lesson,
+    sessionState.sessionType,
+    warning,
+  ]);
 
   const onAdvanceTick = useCallback(async () => {
     if (gridMode !== "session" || !sessionState.isActive || sessionState.isTickRunning) return;
@@ -2083,6 +2952,7 @@ export const useGridModel = () => {
     canStartBeginnerSession,
     canStartNormalSession,
     canStartLessonSession,
+    lessonTickReady,
     canEndSession,
     canRecruitInSession,
     poolSpaceRemaining,
@@ -2101,11 +2971,15 @@ export const useGridModel = () => {
     onEndSession,
     onEndLessonSession,
     onSelectLessonInstructorForPlacement,
+    onUpdateLessonTickAssignment,
+    onRandomizeLessonTickAssignments,
+    onExecuteLessonTick,
     onGoToEditMode,
     getDropPreviewTiles,
     lessonState,
     lessonSelectedInstructors,
     lessonSelectedSkaters,
     lessonHighlightTileKeys,
+    lessonTrickTypeOptionsByInstructor,
   };
 };
