@@ -1,7 +1,9 @@
 import React from "react";
 import Button, { BUTTON_VARIANT } from "../../../../engine/ui/button/button";
-import { MAX_GRID_SIZE, MIN_GRID_SIZE } from "../hooks/gridUtils";
+import { MIN_GRID_SIZE } from "../hooks/gridUtils";
 import "./controls.scss";
+
+const MAX_GRID_SIZE_FOR_UI = 9;
 
 const Controls = ({
   gridSize,
@@ -13,17 +15,16 @@ const Controls = ({
   canEndSession,
   playerSkaterPoolCount,
   startingSpotsCapacity,
+  dayNumber,
+  dayName,
+  weekNumber,
+  hasSessionAvailableToday,
   onGridSizeChange,
   onToggleDeleteMode,
   onStartBeginnerSession,
   onStartNormalSession,
   onEndSession,
 }) => {
-  const sizes = [];
-  for (let value = MIN_GRID_SIZE; value <= MAX_GRID_SIZE; value++) {
-    sizes.push(value);
-  }
-
   return (
     <div className="gridControls">
       <div className="gridControls__clock">
@@ -56,15 +57,15 @@ const Controls = ({
             >
               Start Normal Session
             </Button>
-
-            <Button variant={BUTTON_VARIANT.TERTIARY} to="/skaters">
-              View Skaters
-            </Button>
           </>
         )}
       </div>
 
       <div className="gridControls__sessionInfo">
+        <div>
+          Time: {dayName} (Day {dayNumber}) | Week {weekNumber}
+        </div>
+        <div>Session Available Today: {hasSessionAvailableToday ? "Yes" : "No"}</div>
         <div>Mode: {gridMode === "edit" ? "Edit Skatepark" : "Session"}</div>
         <div>
           Tick: {sessionState.currentTick}/{sessionState.maxTicks}
@@ -77,14 +78,24 @@ const Controls = ({
       {gridMode === "edit" && (
         <div className="gridControls__editPanel">
           <div className="gridControls__group">
-            <label htmlFor="grid-size-select">Grid Size</label>
-            <select id="grid-size-select" value={gridSize} onChange={(event) => onGridSizeChange(event.target.value)}>
-              {sizes.map((size) => (
-                <option key={size} value={size}>
-                  {size}x{size}
-                </option>
-              ))}
-            </select>
+            <label>Grid Size</label>
+            <div className="gridControls__sizeAdjust">
+              <Button
+                variant={BUTTON_VARIANT.SECONDARY}
+                onClick={() => onGridSizeChange(gridSize - 1)}
+                disabled={gridSize <= MIN_GRID_SIZE}
+              >
+                Decrease
+              </Button>
+              <div className="gridControls__sizeValue">{gridSize}x{gridSize}</div>
+              <Button
+                variant={BUTTON_VARIANT.SECONDARY}
+                onClick={() => onGridSizeChange(gridSize + 1)}
+                disabled={gridSize >= MAX_GRID_SIZE_FOR_UI}
+              >
+                Increase
+              </Button>
+            </div>
           </div>
 
           <div className="gridControls__group">

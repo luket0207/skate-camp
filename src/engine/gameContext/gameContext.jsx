@@ -32,6 +32,12 @@ const DEFAULT_GAME_STATE = Object.freeze({
   skateparkConfig: {
     gridSize: 3,
   },
+  time: {
+    dayNumber: 1,
+    lastSessionDayNumber: 0,
+    sessionsCompleted: 0,
+    sessionHistory: [],
+  },
   skatepark: [],
 });
 

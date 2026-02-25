@@ -9,8 +9,12 @@
     (var(--tile-gap) * (var(--max-grid-size) - 1))
   );
 
-  min-height: 100vh;
+  height: 100dvh;
   padding: 1.5rem;
+  box-sizing: border-box;
+  overflow: hidden;
+  display: grid;
+  place-items: flex-start center;
   background:
     radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.16) 0, transparent 38%),
     radial-gradient(circle at 85% 10%, rgba(255, 255, 255, 0.12) 0, transparent 34%),
@@ -20,22 +24,82 @@
   h1 {
     margin: 0 0 1rem;
     color: $lightText;
+    text-align: center;
   }
 }
 
-.skatepark__layout {
+.skatepark__shell {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.skatepark__tabs {
+  display: flex;
+  gap: 0.45rem;
+  margin-bottom: 0.75rem;
+  justify-content: center;
+}
+
+.skatepark__tab {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.2);
+  color: $lightText;
+  padding: 0.35rem 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.skatepark__tab--active {
+  background: rgba(255, 255, 255, 0.92);
+  color: $darkText;
+}
+
+.skatepark__tab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.skatepark__layout {
+  display: grid;
+  grid-template-columns: 400px var(--max-grid-px) 240px;
   gap: 1rem;
   align-items: flex-start;
-  
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .skatepark__leftCol {
   display: grid;
   gap: 1rem;
   align-content: start;
+  justify-items: stretch;
+  width: 400px;
+  max-width: 400px;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0;
+}
+
+.skatepark__centerCol {
+  display: grid;
+  align-content: start;
   justify-items: center;
-  width: 700px;
+  width: var(--max-grid-px);
+  max-width: var(--max-grid-px);
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0;
 }
 
 .skatepark__boardWrap {
@@ -50,15 +114,20 @@
 .skatepark__rightCol {
   width: 240px;
   min-width: 240px;
-  position: sticky;
-  top: 1rem;
+  min-height: 0;
+  overflow: auto;
 }
 
 .skatepark__paletteWrap {
   margin-top: 0;
+  width: 400px;
+  max-width: 400px;
 }
 
 .skatepark__debug {
+  width: 400px;
+  max-width: 400px;
+  box-sizing: border-box;
   margin-top: 0;
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(0, 0, 0, 0.2);
@@ -82,13 +151,45 @@
 }
 
 @media (max-width: 900px) {
+  .skatepark {
+    display: flex;
+    align-items: stretch;
+    place-items: unset;
+  }
+
+  .skatepark__shell {
+    width: 100%;
+    max-height: none;
+    align-items: stretch;
+  }
+
+  .skatepark h1 {
+    text-align: left;
+  }
+
+  .skatepark__tabs {
+    justify-content: flex-start;
+  }
+
   .skatepark__layout {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    overflow: auto;
+    width: 100%;
   }
 
   .skatepark__rightCol {
     width: 100%;
     min-width: 0;
-    position: static;
+  }
+
+  .skatepark__leftCol {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .skatepark__paletteWrap,
+  .skatepark__debug {
+    width: 100%;
+    max-width: 100%;
   }
 }

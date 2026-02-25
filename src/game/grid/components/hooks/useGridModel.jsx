@@ -25,10 +25,19 @@ import { getOppositeDirection, getPieceImageUrl, getRotationFromDirection } from
 const SESSION_TICKS = 20;
 const RUN_DURATION_MS = 2000;
 const MIN_TICK_DURATION_MS = 500;
+const DAYS_PER_WEEK = 5;
+const DAY_NAMES = ["Wed", "Thu", "Fri", "Sat", "Sun"];
+const MAX_PLAYABLE_GRID_SIZE = 9;
 const SESSION_CLOCK_DEFAULT = {
   totalTicks: SESSION_TICKS,
   ticksRemaining: SESSION_TICKS,
   currentTick: 0,
+};
+const DEFAULT_TIME_STATE = {
+  dayNumber: 1,
+  lastSessionDayNumber: 0,
+  sessionsCompleted: 0,
+  sessionHistory: [],
 };
 const TRICK_POINTS_MATRIX = {
   stall: {
@@ -199,6 +208,21 @@ const parseSize = (sizeRaw) => {
   return { rows, cols };
 };
 
+const normalizeTimeState = (timeState) => {
+  if (!timeState || typeof timeState !== "object") return DEFAULT_TIME_STATE;
+  const dayNumber = Math.max(1, Number(timeState.dayNumber) || 1);
+  const lastSessionDayNumber = Math.max(0, Number(timeState.lastSessionDayNumber) || 0);
+  const sessionsCompleted = Math.max(0, Number(timeState.sessionsCompleted) || 0);
+  const sessionHistory = Array.isArray(timeState.sessionHistory) ? timeState.sessionHistory : [];
+
+  return {
+    dayNumber,
+    lastSessionDayNumber,
+    sessionsCompleted,
+    sessionHistory,
+  };
+};
+
 const getRouteDirectionFromPieces = (pieces, explicitDirection = null) => {
   if (explicitDirection) return explicitDirection;
   if (!Array.isArray(pieces) || pieces.length < 2) return "south";
@@ -300,6 +324,7 @@ export const useGridModel = () => {
     Array.isArray(gameState?.player?.skaterPool) ? gameState.player.skaterPool : []
   );
   const [skatepark, setSkatepark] = useState(() => (Array.isArray(gameState.skatepark) ? gameState.skatepark : []));
+  const [timeState, setTimeState] = useState(() => normalizeTimeState(gameState?.time));
   const [sessionState, setSessionState] = useState({
     isActive: false,
     isTickRunning: false,
@@ -333,6 +358,10 @@ export const useGridModel = () => {
   useEffect(() => {
     setGameValue("skateparkConfig.gridSize", gridSize);
   }, [gridSize, setGameValue]);
+
+  useEffect(() => {
+    setGameValue("time", timeState);
+  }, [setGameValue, timeState]);
 
   useEffect(() => {
     const source = Array.isArray(gameState.skatepark) ? gameState.skatepark : [];
@@ -511,6 +540,18 @@ export const useGridModel = () => {
     () => startingTargets.reduce((sum, target) => sum + target.capacity, 0),
     [startingTargets]
   );
+  const hasSessionAvailableToday = useMemo(
+    () => timeState.dayNumber > timeState.lastSessionDayNumber,
+    [timeState.dayNumber, timeState.lastSessionDayNumber]
+  );
+  const currentWeek = useMemo(
+    () => Math.floor((timeState.dayNumber - 1) / DAYS_PER_WEEK) + 1,
+    [timeState.dayNumber]
+  );
+  const currentDayName = useMemo(
+    () => DAY_NAMES[(timeState.dayNumber - 1) % DAYS_PER_WEEK],
+    [timeState.dayNumber]
+  );
   const hasAnySkateparkPiece = useMemo(
     () => placedStandalone.length > 0 || committedRoutes.length > 0,
     [committedRoutes.length, placedStandalone.length]
@@ -518,17 +559,18 @@ export const useGridModel = () => {
 
   const canStartBeginnerSession = useMemo(() => {
     if (!hasAnySkateparkPiece) return false;
+    if (!hasSessionAvailableToday) return false;
     if (startingSpotsCapacity < 2) return false;
     if (!sessionState.isActive) {
       if (playerSkaterPool.length === 0) return true;
       return startingSpotsCapacity > playerSkaterPool.length;
     }
     return false;
-  }, [hasAnySkateparkPiece, playerSkaterPool.length, sessionState.isActive, startingSpotsCapacity]);
+  }, [hasAnySkateparkPiece, hasSessionAvailableToday, playerSkaterPool.length, sessionState.isActive, startingSpotsCapacity]);
 
   const canStartNormalSession = useMemo(
-    () => hasAnySkateparkPiece && !sessionState.isActive && playerSkaterPool.length > 0,
-    [hasAnySkateparkPiece, playerSkaterPool.length, sessionState.isActive]
+    () => hasAnySkateparkPiece && hasSessionAvailableToday && !sessionState.isActive && playerSkaterPool.length > 0,
+    [hasAnySkateparkPiece, hasSessionAvailableToday, playerSkaterPool.length, sessionState.isActive]
   );
 
   const skaterById = useMemo(() => {
@@ -904,7 +946,7 @@ export const useGridModel = () => {
   const onGridSizeChange = useCallback(
     (value) => {
       const nextSize = Number(value);
-      if (!Number.isInteger(nextSize) || nextSize < MIN_GRID_SIZE || nextSize > MAX_GRID_SIZE) return;
+      if (!Number.isInteger(nextSize) || nextSize < MIN_GRID_SIZE || nextSize > MAX_PLAYABLE_GRID_SIZE) return;
 
       if (nextSize === gridSize) return;
 
@@ -1051,6 +1093,7 @@ export const useGridModel = () => {
   const onStartBeginnerSession = useCallback(() => {
     if (editingRoute) return warning("Commit or cancel the current route first.");
     if (!hasAnySkateparkPiece) return warning("Place at least one piece in the skatepark before starting a session.");
+    if (!hasSessionAvailableToday) return warning("You can only hold one session per day.");
     if (!canStartBeginnerSession) return warning("Beginner session is not available right now.");
 
     openModal({
@@ -1072,6 +1115,7 @@ export const useGridModel = () => {
     closeModal,
     editingRoute,
     hasAnySkateparkPiece,
+    hasSessionAvailableToday,
     openModal,
     startSessionWithSkaters,
     startingSpotsCapacity,
@@ -1081,6 +1125,7 @@ export const useGridModel = () => {
   const onStartNormalSession = useCallback(() => {
     if (editingRoute) return warning("Commit or cancel the current route first.");
     if (!hasAnySkateparkPiece) return warning("Place at least one piece in the skatepark before starting a session.");
+    if (!hasSessionAvailableToday) return warning("You can only hold one session per day.");
     if (!canStartNormalSession) return warning("Add skaters to your pool before starting a normal session.");
     if (startingSpotsCapacity < 1) return warning("No starting spots are available in this skatepark.");
 
@@ -1092,6 +1137,7 @@ export const useGridModel = () => {
     canStartNormalSession,
     editingRoute,
     hasAnySkateparkPiece,
+    hasSessionAvailableToday,
     playerSkaterPool,
     startSessionWithSkaters,
     startingSpotsCapacity,
@@ -1174,6 +1220,33 @@ export const useGridModel = () => {
 
   const onEndSession = useCallback(() => {
     if (!canEndSession) return warning("Session can only be ended after all ticks are complete.");
+    const completedDayNumber = timeState.dayNumber;
+    const completedWeek = Math.floor((completedDayNumber - 1) / DAYS_PER_WEEK) + 1;
+    const completedDayName = DAY_NAMES[(completedDayNumber - 1) % DAYS_PER_WEEK];
+
+    const sessionSummary = {
+      id: `session-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+      week: completedWeek,
+      dayNumber: completedDayNumber,
+      dayName: completedDayName,
+      sessionType: sessionState.sessionType,
+      ticks: sessionState.currentTick,
+      skaterCount: sessionState.skaters.length,
+      attempts: sessionState.trickAttempts.length,
+      recruitedSkaterIds: sessionState.recruitedSkaterIds,
+    };
+
+    setTimeState((prev) => {
+      const nextDayNumber = prev.dayNumber + 1;
+      return {
+        ...prev,
+        lastSessionDayNumber: prev.dayNumber,
+        dayNumber: nextDayNumber,
+        sessionsCompleted: prev.sessionsCompleted + 1,
+        sessionHistory: [...prev.sessionHistory, sessionSummary],
+      };
+    });
+
     setGridMode("edit");
     setEditMode("build");
     setSessionState({
@@ -1194,8 +1267,11 @@ export const useGridModel = () => {
       activeRunTricks: {},
       clock: SESSION_CLOCK_DEFAULT,
     });
-    success("Session ended.");
-  }, [canEndSession, success, warning]);
+    const nextDayNumber = completedDayNumber + 1;
+    const nextWeek = Math.floor((nextDayNumber - 1) / DAYS_PER_WEEK) + 1;
+    const nextDayName = DAY_NAMES[(nextDayNumber - 1) % DAYS_PER_WEEK];
+    success(`Session ended. New day: ${nextDayName}, Week ${nextWeek}.`);
+  }, [canEndSession, sessionState, success, timeState.dayNumber, warning]);
 
   const onAdvanceTick = useCallback(async () => {
     if (gridMode !== "session" || !sessionState.isActive || sessionState.isTickRunning) return;
@@ -1396,6 +1472,10 @@ export const useGridModel = () => {
           isSwitch: Boolean(attempt.isSwitch),
         });
 
+        info(
+          `${skater.name}: ${attempt.trickName} on ${attempt.pieceName} - ${landed ? "Landed" : "Bailed"}`
+        );
+
         const canRetry = !landed && (attempt.attemptNumber || 1) < 3;
         const willRetry = canRetry && randomIntInclusive(1, 100) <= Math.max(1, Number(skater.determination || 1));
         if (willRetry) {
@@ -1496,6 +1576,7 @@ export const useGridModel = () => {
     gridMode,
     sessionState,
     allSkateparkRunPieces,
+    info,
     startingTargetById,
     startingTargets,
     success,
@@ -1573,6 +1654,10 @@ export const useGridModel = () => {
     sessionTimeline,
     sessionRunDisplay,
     sessionAttemptLog,
+    timeState,
+    currentWeek,
+    currentDayName,
+    hasSessionAvailableToday,
     playerSkaterPool,
     canStartBeginnerSession,
     canStartNormalSession,

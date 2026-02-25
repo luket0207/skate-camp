@@ -1,0 +1,19 @@
+@use "../../assets/scss/ui/import" as *;
+
+.instructorsPage {
+  min-height: 100vh;
+  padding: 1.5rem;
+  color: $lightText;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.16) 0, transparent 38%),
+    radial-gradient(circle at 85% 10%, rgba(255, 255, 255, 0.12) 0, transparent 34%),
+    $siteBackground;
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+
+  h1 {
+    margin: 0;
+  }
+}
+

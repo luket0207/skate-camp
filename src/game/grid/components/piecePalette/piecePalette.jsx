@@ -101,56 +101,60 @@ const PieceCard = ({ piece, isDragging, dragInvalidReason, onDragStart, onDragEn
   const pieceImageUrl = getPieceImageUrl(piece);
   return (
     <div className="pieceItem">
-    <button
-      type="button"
-      className={`pieceCard${isDragging ? " pieceCard--dragging" : ""}${isDragging && dragInvalidReason ? " pieceCard--invalid" : ""}`}
-      title={piece.name}
-      draggable
-      onDragStart={(event) => {
-        onPieceDragStart(event, piece);
-        onDragStart(piece.id);
-      }}
-      onDragEnd={onDragEnd}
-      style={{
-        backgroundColor: piece.color,
-        backgroundImage: pieceImageUrl ? `url("${pieceImageUrl}")` : undefined,
-      }}
-    >
-    </button>
-
-    <div className="pieceItem__meta">
-      {piece.type === "Standalone"
-        ? `${piece.size.rows}x${piece.size.cols} | Spots ${piece.startingSpots || 0}`
-        : `${renderRouteType(piece.routeType)} | Spots ${piece.startingSpots || 0}`}
-    </div>
-    <div className="pieceItem__name">{piece.name}</div>
-    <div className="pieceItem__chips">
-      <span className="pieceItem__chip">Cost {asDisplay(piece.cost)}</span>
-      <span className="pieceItem__chip">Ops {asDisplay(piece.trickOpportunities)}</span>
-      <span className="pieceItem__chip">Spots {asDisplay(piece.startingSpots)}</span>
-      {piece.type === "Standalone" && <span className="pieceItem__chip">Size {piece.size.rows}x{piece.size.cols}</span>}
-      {piece.type === "Route" && <span className="pieceItem__chip">Type {renderRouteType(piece.routeType)}</span>}
-      {piece.type === "Route" && <span className="pieceItem__chip">Drop {asDisplay(piece.dropSpeed)}</span>}
-      {piece.type === "Route" && <span className="pieceItem__chip">Cost {asDisplay(piece.speedCost)}</span>}
-      {piece.type === "Route" && <span className="pieceItem__chip">Max {asDisplay(piece.maxEntranceSpeed)}</span>}
-    </div>
-
-    <div className="pieceItem__difficulty">
-      <div className="pieceItem__difficultyBlock">
-        <div className="pieceItem__difficultyTitle">RB</div>
-        {["stall", "grind", "tech", "spin", "bigAir"].map((type) => (
-          <DifficultyMeter key={`rb-${type}`} label={shortType(type)} value={piece.difficulty?.rollerblader?.[type]} />
-        ))}
+      <div className="pieceItem__nameWrap">
+        <div className="pieceItem__name">{piece.name}</div>
       </div>
-      <div className="pieceItem__difficultyBlock">
-        <div className="pieceItem__difficultyTitle">SB</div>
-        {["stall", "grind", "tech", "spin", "bigAir"].map((type) => (
-          <DifficultyMeter key={`sb-${type}`} label={shortType(type)} value={getSkateboardDifficulty(piece, type)} />
-        ))}
+
+      <button
+        type="button"
+        className={`pieceCard${isDragging ? " pieceCard--dragging" : ""}${isDragging && dragInvalidReason ? " pieceCard--invalid" : ""}`}
+        title={piece.name}
+        draggable
+        onDragStart={(event) => {
+          onPieceDragStart(event, piece);
+          onDragStart(piece.id);
+        }}
+        onDragEnd={onDragEnd}
+        style={{
+          backgroundColor: piece.color,
+          backgroundImage: pieceImageUrl ? `url("${pieceImageUrl}")` : undefined,
+        }}
+      />
+
+      <div className="pieceItem__details">
+        <div className="pieceItem__meta">
+          {piece.type === "Standalone"
+            ? `${piece.size.rows}x${piece.size.cols} | Spots ${piece.startingSpots || 0}`
+            : `${renderRouteType(piece.routeType)} | Spots ${piece.startingSpots || 0}`}
+        </div>
+        <div className="pieceItem__chips">
+          <span className="pieceItem__chip">Cost {asDisplay(piece.cost)}</span>
+          <span className="pieceItem__chip">Ops {asDisplay(piece.trickOpportunities)}</span>
+          <span className="pieceItem__chip">Spots {asDisplay(piece.startingSpots)}</span>
+          {piece.type === "Standalone" && <span className="pieceItem__chip">Size {piece.size.rows}x{piece.size.cols}</span>}
+          {piece.type === "Route" && <span className="pieceItem__chip">Type {renderRouteType(piece.routeType)}</span>}
+          {piece.type === "Route" && <span className="pieceItem__chip">Drop {asDisplay(piece.dropSpeed)}</span>}
+          {piece.type === "Route" && <span className="pieceItem__chip">Cost {asDisplay(piece.speedCost)}</span>}
+          {piece.type === "Route" && <span className="pieceItem__chip">Max {asDisplay(piece.maxEntranceSpeed)}</span>}
+        </div>
       </div>
+
+      <div className="pieceItem__difficulty">
+        <div className="pieceItem__difficultyBlock">
+          <div className="pieceItem__difficultyTitle">RB</div>
+          {["stall", "grind", "tech", "spin", "bigAir"].map((type) => (
+            <DifficultyMeter key={`rb-${type}`} label={shortType(type)} value={piece.difficulty?.rollerblader?.[type]} />
+          ))}
+        </div>
+        <div className="pieceItem__difficultyBlock">
+          <div className="pieceItem__difficultyTitle">SB</div>
+          {["stall", "grind", "tech", "spin", "bigAir"].map((type) => (
+            <DifficultyMeter key={`sb-${type}`} label={shortType(type)} value={getSkateboardDifficulty(piece, type)} />
+          ))}
+        </div>
+      </div>
+      {isDragging && dragInvalidReason && <div className="pieceItem__error">{dragInvalidReason}</div>}
     </div>
-    {isDragging && dragInvalidReason && <div className="pieceItem__error">{dragInvalidReason}</div>}
-  </div>
   );
 };
 
@@ -241,7 +245,7 @@ const PiecePalette = ({
       <h4>
         {activeTab} Pieces {routeModeActive && activeTab !== "Standalone" ? "(Route Mode Active)" : ""}
       </h4>
-      <div className="piecePalette__list piecePalette__list--row">
+      <div className="piecePalette__list piecePalette__list--column">
         {visiblePieces.map((piece) => (
           <PieceCard
             key={piece.id}

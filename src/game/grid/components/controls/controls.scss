@@ -71,12 +71,15 @@
     font-weight: 700;
   }
 
-  select {
-    width: 100%;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 8px;
-    padding: 0.45rem 0.6rem;
-    background: $secondaryBackground;
-    color: $secondaryForeground;
-  }
+}
+
+.gridControls__sizeAdjust {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.gridControls__sizeValue {
+  text-align: center;
+  font-weight: 800;
+  font-size: 0.9rem;
 }

@@ -1,8 +1,9 @@
 @use "../../../../assets/scss/ui/import" as *;
 
 .piecePalette {
-  width: 600px;
+  width: 400px;
   max-width: 100%;
+  box-sizing: border-box;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid rgba(0, 0, 0, 0.2);
   border-radius: 12px;
@@ -59,19 +60,49 @@
   margin-top: 0.45rem;
 }
 
-.piecePalette__list--row {
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
+.piecePalette__list--column {
+  flex-direction: column;
+  max-height: 560px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.2rem;
 }
 
 .pieceItem {
   display: grid;
-  gap: 0.25rem;
-  justify-items: start;
-  min-width: 210px;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  grid-template-areas:
+    "name name name card"
+    "details details details card"
+    "difficulty difficulty difficulty difficulty"
+    "error error error error";
+  gap: 0.4rem 0.55rem;
+  align-items: start;
+  width: 100%;
+  padding: 0.55rem;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(241, 245, 249, 0.88)),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 55%);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
+.pieceItem__nameWrap {
+  grid-area: name;
+  align-self: center;
+}
+
+.pieceItem__details {
+  grid-area: details;
+  display: grid;
+  gap: 0.28rem;
 }
 
 .pieceCard {
+  grid-area: card;
+  justify-self: end;
+  align-self: stretch;
   width: var(--tile-size);
   height: var(--tile-size);
   min-width: var(--tile-size);
@@ -102,15 +133,17 @@
 }
 
 .pieceItem__meta {
-  font-size: 0.6rem;
+  font-size: 0.64rem;
   font-weight: 700;
   white-space: normal;
 }
 
 .pieceItem__name {
-  font-size: 0.66rem;
-  font-weight: 800;
-  line-height: 1.2;
+  font-size: 0.9rem;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  text-wrap: balance;
 }
 
 .pieceItem__chips {
@@ -129,9 +162,11 @@
 }
 
 .pieceItem__difficulty {
+  grid-area: difficulty;
   display: grid;
   gap: 0.25rem;
   width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .pieceItem__difficultyBlock {
@@ -181,6 +216,7 @@
 }
 
 .pieceItem__error {
+  grid-area: error;
   max-width: 210px;
   text-align: left;
   font-size: 0.58rem;

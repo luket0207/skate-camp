@@ -1,0 +1,122 @@
+@use "../../assets/scss/ui/import" as *;
+
+.calendarScene {
+  width: var(--max-grid-px);
+  display: grid;
+  gap: 0.8rem;
+}
+
+.calendarScene__header {
+  background: rgba(255, 255, 255, 0.94);
+  color: $darkText;
+  border-radius: 10px;
+  padding: 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.16);
+
+  h2 {
+    margin: 0;
+  }
+
+  p {
+    margin: 0.35rem 0 0;
+    font-size: 0.86rem;
+  }
+}
+
+.calendarScene__window {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.calendarScene__window--dayAdvance {
+  animation: calendarWindowShift 0.65s ease;
+}
+
+.calendarScene__day {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  border-radius: 10px;
+  padding: 0.45rem;
+  color: $darkText;
+  transition: transform 0.3s ease, background-color 0.3s ease, opacity 0.3s ease;
+}
+
+.calendarScene__day--past {
+  opacity: 0.55;
+}
+
+.calendarScene__day--current {
+  background: #1f2937;
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+.calendarScene__day--currentAdvance {
+  animation: calendarCurrentPulse 0.9s ease;
+}
+
+.calendarScene__slot,
+.calendarScene__week,
+.calendarScene__dayNumber {
+  font-size: 0.7rem;
+}
+
+.calendarScene__dayName {
+  font-size: 1rem;
+  font-weight: 800;
+  margin: 0.2rem 0;
+}
+
+.calendarControls {
+  display: grid;
+  gap: 0.6rem;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  padding: 0.8rem;
+  color: $lightText;
+
+  h3 {
+    margin: 0;
+    font-size: 0.95rem;
+  }
+
+  .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 900px) {
+  .calendarScene {
+    width: 100%;
+  }
+
+  .calendarScene__window {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@keyframes calendarWindowShift {
+  0% {
+    transform: translateX(16px);
+    opacity: 0.65;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes calendarCurrentPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.75);
+  }
+  45% {
+    box-shadow: 0 0 0 12px rgba(255, 255, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
