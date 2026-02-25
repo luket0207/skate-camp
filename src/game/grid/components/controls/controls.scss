@@ -20,6 +20,15 @@
   gap: 0.45rem;
 }
 
+.gridControls__lessonNotice {
+  font-size: 0.8rem;
+  opacity: 0.9;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
 .gridControls__clock {
   display: grid;
   justify-items: center;

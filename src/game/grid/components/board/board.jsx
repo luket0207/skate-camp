@@ -8,6 +8,7 @@ const Board = ({
   gridSize,
   occupancy,
   skaterMarkers,
+  instructorMarkers,
   editingRoute,
   onCancelRoute,
   onCommitRoute,
@@ -15,6 +16,7 @@ const Board = ({
   onTileDrop,
   onTileClick,
   getDropPreviewTiles,
+  highlightedTileKeys,
 }) => {
   const [previewTileKeys, setPreviewTileKeys] = React.useState(new Set());
   const tiles = [];
@@ -62,10 +64,12 @@ const Board = ({
             col={tile.col}
             occupant={occupancy.get(key)}
             skaters={skaterMarkers.get(key) || []}
+            instructors={instructorMarkers?.get(key) || []}
             onDrop={onTileDrop}
             onClick={onTileClick}
             onDragHover={handleTileDragHover}
             isDropPreview={previewTileKeys.has(key)}
+            isHighlighted={Boolean(highlightedTileKeys?.has(key))}
           />
         );
       })}

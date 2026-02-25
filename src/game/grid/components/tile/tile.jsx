@@ -1,13 +1,25 @@
 import React from "react";
 import "./tile.scss";
 
-const Tile = ({ row, col, occupant, skaters, onDrop, onClick, onDragHover, isDropPreview }) => {
+const Tile = ({
+  row,
+  col,
+  occupant,
+  skaters,
+  instructors,
+  onDrop,
+  onClick,
+  onDragHover,
+  isDropPreview,
+  isHighlighted,
+}) => {
   const classNames = ["gridTile"];
 
   if (occupant) classNames.push("gridTile--occupied");
   if (occupant?.kind === "editing-route") classNames.push("gridTile--editingRoute");
   if (occupant?.kind === "standalone" && occupant?.imageUrl) classNames.push("gridTile--standaloneImage");
   if (isDropPreview) classNames.push("gridTile--dropPreview");
+  if (isHighlighted) classNames.push("gridTile--highlighted");
   const tileStyle = {};
   const pieceImageStyle = occupant?.imageUrl ? {
     backgroundImage: `url("${occupant.imageUrl}")`,
@@ -85,6 +97,19 @@ const Tile = ({ row, col, occupant, skaters, onDrop, onClick, onDragHover, isDro
             >
               {skater.initials}
               {skater.trickName && <span className="gridTile__skaterTrick">{skater.trickName}</span>}
+            </span>
+          ))}
+        </span>
+      )}
+      {instructors?.length > 0 && (
+        <span className="gridTile__instructors">
+          {instructors.slice(0, 4).map((instructor, index) => (
+            <span
+              key={instructor.id}
+              className={`gridTile__instructor gridTile__instructor--slot${index + 1}`}
+              title={instructor.initials}
+            >
+              {instructor.initials}
             </span>
           ))}
         </span>

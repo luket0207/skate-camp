@@ -17,3 +17,57 @@
   }
 }
 
+.instructorsPage__topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.instructorsPage__summary {
+  font-weight: 700;
+}
+
+.instructorsPage__list {
+  display: grid;
+  gap: 0.8rem;
+  max-width: 920px;
+  max-height: calc(100vh - 190px);
+  overflow-y: auto;
+  padding-right: 0.3rem;
+}
+
+.instructorsPage__card {
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  border-radius: 10px;
+  padding: 0.8rem;
+  color: $darkText;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.instructorsPage__header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+
+  h2 {
+    margin: 0;
+    font-size: 1rem;
+  }
+}
+
+.instructorsPage__sport {
+  font-size: 0.78rem;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.instructorsPage__stats,
+.instructorsPage__ratings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+}

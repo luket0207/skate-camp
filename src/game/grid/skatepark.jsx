@@ -2,6 +2,8 @@ import React from "react";
 import Controls from "./components/controls/controls";
 import PiecePalette from "./components/piecePalette/piecePalette";
 import SessionPanel from "./components/sessionPanel/sessionPanel";
+import LessonPanel from "./components/lessonPanel/lessonPanel";
+import CalendarDataPanel from "./components/calendarDataPanel/calendarDataPanel";
 import Board from "./components/board/board";
 import Calendar, { CalendarControls } from "./calendar";
 import { useGridModel } from "./components/hooks/useGridModel";
@@ -85,15 +87,31 @@ const Skatepark = () => {
 
             {activeTab === "skatepark" && model.gridMode === "session" && (
               <div className="skatepark__paletteWrap">
-                <SessionPanel
-                  sessionState={model.sessionState}
-                  timeline={model.sessionTimeline}
-                  runDisplay={model.sessionRunDisplay}
-                  attemptLog={model.sessionAttemptLog}
-                  canRecruitSkaters={model.canRecruitInSession}
-                  poolSpaceRemaining={model.poolSpaceRemaining}
-                  onRecruitSkater={model.onRecruitBeginnerSkater}
-                />
+                {model.sessionState.sessionType === "lesson" ? (
+                  <LessonPanel
+                    lessonState={model.lessonState}
+                    selectedInstructors={model.lessonSelectedInstructors}
+                    selectedSkaters={model.lessonSelectedSkaters}
+                    onSelectInstructorForPlacement={model.onSelectLessonInstructorForPlacement}
+                    onEndLessonSession={model.onEndLessonSession}
+                  />
+                ) : (
+                  <SessionPanel
+                    sessionState={model.sessionState}
+                    timeline={model.sessionTimeline}
+                    runDisplay={model.sessionRunDisplay}
+                    attemptLog={model.sessionAttemptLog}
+                    canRecruitSkaters={model.canRecruitInSession}
+                    poolSpaceRemaining={model.poolSpaceRemaining}
+                    onRecruitSkater={model.onRecruitBeginnerSkater}
+                  />
+                )}
+              </div>
+            )}
+
+            {activeTab === "calendar" && (
+              <div className="skatepark__paletteWrap">
+                <CalendarDataPanel instructors={model.playerInstructors} />
               </div>
             )}
           </div>
@@ -105,6 +123,7 @@ const Skatepark = () => {
                   gridSize={model.gridSize}
                   occupancy={model.occupancy}
                   skaterMarkers={model.skaterMarkers}
+                  instructorMarkers={model.instructorMarkers}
                   editingRoute={model.editingRoute}
                   onCancelRoute={model.onCancelRoute}
                   onCommitRoute={model.onCommitRoute}
@@ -112,6 +131,7 @@ const Skatepark = () => {
                   onTileDrop={model.onTileDrop}
                   onTileClick={model.onTileClick}
                   getDropPreviewTiles={model.getDropPreviewTiles}
+                  highlightedTileKeys={model.lessonHighlightTileKeys}
                 />
               </div>
             ) : (
@@ -128,6 +148,7 @@ const Skatepark = () => {
                 sessionState={model.sessionState}
                 canStartBeginnerSession={model.canStartBeginnerSession}
                 canStartNormalSession={model.canStartNormalSession}
+                canStartLessonSession={model.canStartLessonSession}
                 canEndSession={model.canEndSession}
                 playerSkaterPoolCount={model.playerSkaterPool.length}
                 startingSpotsCapacity={model.startingSpotsCapacity}
@@ -139,6 +160,7 @@ const Skatepark = () => {
                 onToggleDeleteMode={model.onToggleDeleteMode}
                 onStartBeginnerSession={model.onStartBeginnerSession}
                 onStartNormalSession={model.onStartNormalSession}
+                onStartLessonSession={model.onStartLessonSession}
                 onEndSession={model.onEndSession}
               />
             ) : (

@@ -23,6 +23,7 @@ import { buildTrickAttemptsForRun } from "./sessionTrickUtils";
 import { getOppositeDirection, getPieceImageUrl, getRotationFromDirection } from "./pieceImageUtils";
 
 const SESSION_TICKS = 20;
+const LESSON_SESSION_TICKS = 10;
 const RUN_DURATION_MS = 2000;
 const MIN_TICK_DURATION_MS = 500;
 const DAYS_PER_WEEK = 5;
@@ -32,6 +33,11 @@ const SESSION_CLOCK_DEFAULT = {
   totalTicks: SESSION_TICKS,
   ticksRemaining: SESSION_TICKS,
   currentTick: 0,
+};
+const LESSON_CLOCK_DEFAULT = {
+  totalTicks: LESSON_SESSION_TICKS,
+  ticksRemaining: LESSON_SESSION_TICKS - 1,
+  currentTick: 1,
 };
 const DEFAULT_TIME_STATE = {
   dayNumber: 1,
@@ -98,6 +104,13 @@ const getRouteSpeedAfterPieces = (pieces) => {
   return Math.max(0, startDropSpeed - middleCost);
 };
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const getInitialsFromName = (name) => {
+  if (typeof name !== "string") return "IN";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 1) return "IN";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
+};
 
 const getSkillLevel = (skater) => clamp(Number(skater?.skillLevel || 1), 1, 100);
 
@@ -303,6 +316,171 @@ const BeginnerSportModal = ({ onChoose }) => {
   );
 };
 
+const LessonSetupModal = ({ instructors, skaters, maxInstructorCount, onStart }) => {
+  const [selectedInstructorIds, setSelectedInstructorIds] = React.useState([]);
+  const [selectedSkaterIds, setSelectedSkaterIds] = React.useState([]);
+
+  React.useEffect(() => {
+    setSelectedSkaterIds((prev) => {
+      if (prev.length <= selectedInstructorIds.length) return prev;
+      return prev.slice(0, selectedInstructorIds.length);
+    });
+  }, [selectedInstructorIds.length]);
+
+  const addInstructor = (instructorId) => {
+    setSelectedInstructorIds((prev) => {
+      if (prev.includes(instructorId)) return prev;
+      if (prev.length >= maxInstructorCount) return prev;
+      return [...prev, instructorId];
+    });
+  };
+
+  const removeInstructor = (instructorId) => {
+    setSelectedInstructorIds((prev) => prev.filter((id) => id !== instructorId));
+  };
+
+  const addSkater = (skaterId) => {
+    setSelectedSkaterIds((prev) => {
+      if (prev.includes(skaterId)) return prev;
+      if (prev.length >= selectedInstructorIds.length) return prev;
+      return [...prev, skaterId];
+    });
+  };
+
+  const removeSkater = (skaterId) => {
+    setSelectedSkaterIds((prev) => prev.filter((id) => id !== skaterId));
+  };
+
+  const canStart =
+    selectedInstructorIds.length >= 1 &&
+    selectedSkaterIds.length === selectedInstructorIds.length;
+  const availableInstructors = instructors.filter((item) => !selectedInstructorIds.includes(item.id));
+  const inSessionInstructors = selectedInstructorIds
+    .map((id) => instructors.find((item) => item.id === id))
+    .filter(Boolean);
+  const availableSkaters = skaters.filter((item) => !selectedSkaterIds.includes(item.id));
+  const inSessionSkaters = selectedSkaterIds
+    .map((id) => skaters.find((item) => item.id === id))
+    .filter(Boolean);
+
+  return (
+    <div style={{ display: "grid", gap: "0.85rem" }}>
+      <div style={{ fontSize: "0.86rem", opacity: 0.9 }}>
+        Move instructors and skaters into the In Session columns. Counts must match.
+      </div>
+
+      <div style={{ display: "grid", gap: "0.45rem" }}>
+        <strong>Instructors</strong>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.55rem" }}>
+          <div style={{ display: "grid", gap: "0.3rem" }}>
+            <div style={{ fontSize: "0.76rem", fontWeight: 700, opacity: 0.88 }}>Available</div>
+            <div style={{ display: "grid", gap: "0.3rem", maxHeight: "180px", overflowY: "auto" }}>
+              {availableInstructors.map((instructor) => (
+                <Button
+                  key={instructor.id}
+                  variant={BUTTON_VARIANT.SECONDARY}
+                  onClick={() => addInstructor(instructor.id)}
+                  disabled={selectedInstructorIds.length >= maxInstructorCount}
+                >
+                  + {instructor.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "grid", gap: "0.3rem" }}>
+            <div style={{ fontSize: "0.76rem", fontWeight: 700, opacity: 0.88 }}>
+              In Session ({selectedInstructorIds.length}/{maxInstructorCount})
+            </div>
+            <div style={{ display: "grid", gap: "0.3rem", maxHeight: "180px", overflowY: "auto" }}>
+              {inSessionInstructors.map((instructor) => (
+                <Button
+                  key={instructor.id}
+                  variant={BUTTON_VARIANT.PRIMARY}
+                  onClick={() => removeInstructor(instructor.id)}
+                >
+                  - {instructor.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: "0.45rem" }}>
+        <strong>Skaters</strong>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.55rem" }}>
+          <div style={{ display: "grid", gap: "0.3rem" }}>
+            <div style={{ fontSize: "0.76rem", fontWeight: 700, opacity: 0.88 }}>Available</div>
+            <div style={{ display: "grid", gap: "0.3rem", maxHeight: "180px", overflowY: "auto" }}>
+              {availableSkaters.map((skater) => (
+                <Button
+                  key={skater.id}
+                  variant={BUTTON_VARIANT.SECONDARY}
+                  onClick={() => addSkater(skater.id)}
+                  disabled={selectedSkaterIds.length >= selectedInstructorIds.length}
+                >
+                  + {skater.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "grid", gap: "0.3rem" }}>
+            <div style={{ fontSize: "0.76rem", fontWeight: 700, opacity: 0.88 }}>
+              In Session ({selectedSkaterIds.length}/{selectedInstructorIds.length})
+            </div>
+            <div style={{ display: "grid", gap: "0.3rem", maxHeight: "180px", overflowY: "auto" }}>
+              {inSessionSkaters.map((skater) => (
+                <Button
+                  key={skater.id}
+                  variant={BUTTON_VARIANT.PRIMARY}
+                  onClick={() => removeSkater(skater.id)}
+                >
+                  - {skater.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Button
+        variant={BUTTON_VARIANT.PRIMARY}
+        disabled={!canStart}
+        onClick={() => onStart(selectedInstructorIds, selectedSkaterIds)}
+      >
+        Start Lesson Session
+      </Button>
+    </div>
+  );
+};
+
+const createDefaultSessionState = () => ({
+  isActive: false,
+  isTickRunning: false,
+  currentTick: 0,
+  maxTicks: SESSION_TICKS,
+  sessionType: "normal",
+  skaters: [],
+  beginnerCandidates: [],
+  assignments: {},
+  skaterPositions: {},
+  trickAttempts: [],
+  currentTickTrickAttempts: [],
+  recruitedSkaterIds: [],
+  retryQueue: {},
+  instructorTrickRating: 0,
+  activeRunTricks: {},
+  lesson: {
+    isPlacementPhase: false,
+    activePlacementInstructorId: null,
+    selectedInstructorIds: [],
+    selectedSkaterIds: [],
+    selectedSkaterByInstructor: {},
+    placementsByInstructor: {},
+  },
+  clock: SESSION_CLOCK_DEFAULT,
+});
+
 export const useGridModel = () => {
   const { setGameValue, gameState } = useGame();
   const { openModal, closeModal } = useModal();
@@ -323,26 +501,12 @@ export const useGridModel = () => {
   const [playerSkaterPool, setPlayerSkaterPool] = useState(() =>
     Array.isArray(gameState?.player?.skaterPool) ? gameState.player.skaterPool : []
   );
+  const [playerInstructors, setPlayerInstructors] = useState(() =>
+    Array.isArray(gameState?.player?.instructors) ? gameState.player.instructors : []
+  );
   const [skatepark, setSkatepark] = useState(() => (Array.isArray(gameState.skatepark) ? gameState.skatepark : []));
   const [timeState, setTimeState] = useState(() => normalizeTimeState(gameState?.time));
-  const [sessionState, setSessionState] = useState({
-    isActive: false,
-    isTickRunning: false,
-    currentTick: 0,
-    maxTicks: SESSION_TICKS,
-    sessionType: "normal",
-    skaters: [],
-    beginnerCandidates: [],
-    assignments: {},
-    skaterPositions: {},
-    trickAttempts: [],
-    currentTickTrickAttempts: [],
-    recruitedSkaterIds: [],
-    retryQueue: {},
-    instructorTrickRating: 0,
-    activeRunTricks: {},
-    clock: SESSION_CLOCK_DEFAULT,
-  });
+  const [sessionState, setSessionState] = useState(createDefaultSessionState);
 
   const standaloneCounterRef = useRef(1);
   const routeCounterRef = useRef(1);
@@ -354,6 +518,15 @@ export const useGridModel = () => {
   useEffect(() => {
     setGameValue("player.skaterPool", playerSkaterPool);
   }, [playerSkaterPool, setGameValue]);
+
+  useEffect(() => {
+    setGameValue("player.instructors", playerInstructors);
+  }, [playerInstructors, setGameValue]);
+
+  useEffect(() => {
+    const source = Array.isArray(gameState?.player?.instructors) ? gameState.player.instructors : [];
+    setPlayerInstructors(source);
+  }, [gameState?.player?.instructors]);
 
   useEffect(() => {
     setGameValue("skateparkConfig.gridSize", gridSize);
@@ -502,6 +675,35 @@ export const useGridModel = () => {
     return map;
   }, [startingTargets]);
 
+  const lessonTargets = useMemo(() => {
+    const targets = [];
+    placedStandalone.forEach((item) => {
+      targets.push({
+        targetId: `lesson-standalone-${item.instanceId}`,
+        label: `${item.name} (${toCoordinate(item.topLeft.row, item.topLeft.col)})`,
+        type: "Standalone",
+        tileKeys: item.tiles.map((tile) => makeTileKey(tile.row, tile.col)),
+      });
+    });
+    committedRoutes.forEach((route) => {
+      targets.push({
+        targetId: `lesson-route-${route.routeId}`,
+        label: `${route.name}`,
+        type: "Route",
+        tileKeys: route.pieces.map((piece) => makeTileKey(piece.row, piece.col)),
+      });
+    });
+    return targets;
+  }, [committedRoutes, placedStandalone]);
+
+  const lessonTargetByTileKey = useMemo(() => {
+    const map = new Map();
+    lessonTargets.forEach((target) => {
+      target.tileKeys.forEach((tileKey) => map.set(tileKey, target));
+    });
+    return map;
+  }, [lessonTargets]);
+
   const allSkateparkRunPieces = useMemo(() => {
     const pieces = [];
     const seen = new Set();
@@ -556,6 +758,7 @@ export const useGridModel = () => {
     () => placedStandalone.length > 0 || committedRoutes.length > 0,
     [committedRoutes.length, placedStandalone.length]
   );
+  const lessonSlotCapacity = useMemo(() => lessonTargets.length, [lessonTargets.length]);
 
   const canStartBeginnerSession = useMemo(() => {
     if (!hasAnySkateparkPiece) return false;
@@ -571,6 +774,24 @@ export const useGridModel = () => {
   const canStartNormalSession = useMemo(
     () => hasAnySkateparkPiece && hasSessionAvailableToday && !sessionState.isActive && playerSkaterPool.length > 0,
     [hasAnySkateparkPiece, hasSessionAvailableToday, playerSkaterPool.length, sessionState.isActive]
+  );
+
+  const canStartLessonSession = useMemo(
+    () =>
+      hasAnySkateparkPiece &&
+      hasSessionAvailableToday &&
+      !sessionState.isActive &&
+      playerSkaterPool.length > 0 &&
+      playerInstructors.length > 0 &&
+      lessonSlotCapacity > 0,
+    [
+      hasAnySkateparkPiece,
+      hasSessionAvailableToday,
+      lessonSlotCapacity,
+      playerInstructors.length,
+      playerSkaterPool.length,
+      sessionState.isActive,
+    ]
   );
 
   const skaterById = useMemo(() => {
@@ -596,6 +817,64 @@ export const useGridModel = () => {
     });
     return markersByTile;
   }, [sessionState.activeRunTricks, sessionState.skaterPositions, skaterById]);
+
+  const instructorMarkers = useMemo(() => {
+    const markersByTile = new Map();
+    if (gridMode !== "session" || sessionState.sessionType !== "lesson") return markersByTile;
+
+    Object.entries(sessionState.lesson?.placementsByInstructor || {}).forEach(([instructorId, placement]) => {
+      if (!placement || !Number.isInteger(placement.row) || !Number.isInteger(placement.col)) return;
+      const instructor = playerInstructors.find((item) => item.id === instructorId);
+      const key = makeTileKey(placement.row, placement.col);
+      const list = markersByTile.get(key) || [];
+      list.push({
+        id: instructorId,
+        initials: instructor?.initials || getInitialsFromName(instructor?.name),
+        color: "#facc15",
+      });
+      markersByTile.set(key, list);
+    });
+
+    return markersByTile;
+  }, [gridMode, playerInstructors, sessionState.lesson?.placementsByInstructor, sessionState.sessionType]);
+
+  const lessonState = useMemo(
+    () => ({
+      currentTick: sessionState.currentTick,
+      maxTicks: sessionState.maxTicks,
+      ...(sessionState.lesson || {}),
+    }),
+    [sessionState.currentTick, sessionState.lesson, sessionState.maxTicks]
+  );
+
+  const lessonSelectedInstructors = useMemo(() => {
+    const selected = sessionState.lesson?.selectedInstructorIds || [];
+    return selected
+      .map((id) => playerInstructors.find((instructor) => instructor.id === id))
+      .filter(Boolean);
+  }, [playerInstructors, sessionState.lesson?.selectedInstructorIds]);
+
+  const lessonSelectedSkaters = useMemo(() => {
+    const selected = sessionState.lesson?.selectedSkaterIds || [];
+    return selected
+      .map((id) => playerSkaterPool.find((skater) => skater.id === id))
+      .filter(Boolean);
+  }, [playerSkaterPool, sessionState.lesson?.selectedSkaterIds]);
+
+  const lessonHighlightTileKeys = useMemo(() => {
+    if (gridMode !== "session" || sessionState.sessionType !== "lesson") return new Set();
+    if (!sessionState.lesson?.isPlacementPhase || !sessionState.lesson?.activePlacementInstructorId) return new Set();
+    const usedTargetIds = new Set(Object.values(sessionState.lesson?.placementsByInstructor || {}).map((item) => item.targetId));
+    const activeInstructorId = sessionState.lesson.activePlacementInstructorId;
+    const currentPlacement = sessionState.lesson?.placementsByInstructor?.[activeInstructorId];
+    const keys = new Set();
+    lessonTargets.forEach((target) => {
+      if (currentPlacement?.targetId === target.targetId || !usedTargetIds.has(target.targetId)) {
+        target.tileKeys.forEach((key) => keys.add(key));
+      }
+    });
+    return keys;
+  }, [gridMode, lessonTargets, sessionState.lesson, sessionState.sessionType]);
 
   const occupancy = useMemo(() => {
     const map = new Map();
@@ -904,6 +1183,55 @@ export const useGridModel = () => {
 
   const onTileClick = useCallback(
     (row, col) => {
+      if (
+        gridMode === "session" &&
+        sessionState.sessionType === "lesson" &&
+        sessionState.lesson?.isPlacementPhase &&
+        sessionState.lesson?.activePlacementInstructorId
+      ) {
+        const target = lessonTargetByTileKey.get(makeTileKey(row, col));
+        if (!target) return;
+        const usedTargetIds = new Set(
+          Object.entries(sessionState.lesson?.placementsByInstructor || {})
+            .filter(([instructorId]) => instructorId !== sessionState.lesson.activePlacementInstructorId)
+            .map(([, placement]) => placement.targetId)
+        );
+        if (usedTargetIds.has(target.targetId)) {
+          warning("Another instructor is already placed on that route/piece.");
+          return;
+        }
+
+        const nextPlacements = {
+          ...(sessionState.lesson?.placementsByInstructor || {}),
+          [sessionState.lesson.activePlacementInstructorId]: {
+            targetId: target.targetId,
+            label: target.label,
+            row,
+            col,
+          },
+        };
+        const requiredCount = (sessionState.lesson?.selectedInstructorIds || []).length;
+        const isPlacementComplete = Object.keys(nextPlacements).length >= requiredCount && requiredCount > 0;
+
+        setSessionState((prev) => ({
+          ...prev,
+          isActive: !isPlacementComplete,
+          lesson: {
+            ...prev.lesson,
+            placementsByInstructor: nextPlacements,
+            activePlacementInstructorId: null,
+            isPlacementPhase: !isPlacementComplete,
+          },
+        }));
+
+        if (isPlacementComplete) {
+          success("All instructors placed. Lesson setup complete.");
+        } else {
+          info("Instructor placed. Select the next instructor.");
+        }
+        return;
+      }
+
       if (gridMode !== "edit" || editMode !== "delete") return;
       const item = occupancy.get(makeTileKey(row, col));
       if (!item) return;
@@ -934,7 +1262,21 @@ export const useGridModel = () => {
         });
       }
     },
-    [closeModal, editMode, gridMode, occupancy, openModal, removeRoute, removeStandalone]
+    [
+      closeModal,
+      editMode,
+      gridMode,
+      info,
+      lessonTargetByTileKey,
+      occupancy,
+      openModal,
+      removeRoute,
+      removeStandalone,
+      sessionState.lesson,
+      sessionState.sessionType,
+      success,
+      warning,
+    ]
   );
 
   const onToggleDeleteMode = useCallback(() => {
@@ -1067,21 +1409,13 @@ export const useGridModel = () => {
       setGridMode("session");
       setEditMode("build");
       setSessionState({
+        ...createDefaultSessionState(),
         isActive: true,
-        isTickRunning: false,
         currentTick: 0,
         maxTicks: SESSION_TICKS,
         sessionType,
         skaters,
         beginnerCandidates: sessionType === "beginner" ? baseSkaters : [],
-        assignments: {},
-        skaterPositions: {},
-        trickAttempts: [],
-        currentTickTrickAttempts: [],
-        recruitedSkaterIds: [],
-        retryQueue: {},
-        instructorTrickRating: 0,
-        activeRunTricks: {},
         clock: SESSION_CLOCK_DEFAULT,
       });
 
@@ -1144,6 +1478,86 @@ export const useGridModel = () => {
     warning,
   ]);
 
+  const onStartLessonSession = useCallback(() => {
+    if (editingRoute) return warning("Commit or cancel the current route first.");
+    if (!hasAnySkateparkPiece) return warning("Place at least one piece in the skatepark before starting a session.");
+    if (!hasSessionAvailableToday) return warning("You can only hold one session per day.");
+    if (playerInstructors.length < 1) return warning("Hire at least one instructor first.");
+    if (playerSkaterPool.length < 1) return warning("Add at least one skater to your pool first.");
+    if (lessonSlotCapacity < 1) return warning("No lesson placement targets are available in this skatepark.");
+    if (!canStartLessonSession) return warning("Lesson session is not available right now.");
+
+    const maxInstructorCount = Math.min(lessonSlotCapacity, playerInstructors.length);
+    openModal({
+      modalTitle: "Setup Lesson Session",
+      buttons: MODAL_BUTTONS.NONE,
+      modalContent: (
+        <LessonSetupModal
+          instructors={playerInstructors}
+          skaters={playerSkaterPool}
+          maxInstructorCount={maxInstructorCount}
+          onStart={(selectedInstructorIds, selectedSkaterIds) => {
+            const selectedSkaterByInstructor = {};
+            selectedInstructorIds.forEach((instructorId, index) => {
+              selectedSkaterByInstructor[instructorId] = selectedSkaterIds[index] || null;
+            });
+
+            setGridMode("session");
+            setEditMode("build");
+            setSessionState({
+              ...createDefaultSessionState(),
+              isActive: true,
+              currentTick: 1,
+              maxTicks: LESSON_SESSION_TICKS,
+              sessionType: "lesson",
+              skaters: selectedSkaterIds
+                .map((skaterId) => playerSkaterPool.find((skater) => skater.id === skaterId))
+                .filter(Boolean),
+              lesson: {
+                isPlacementPhase: true,
+                activePlacementInstructorId: selectedInstructorIds[0] || null,
+                selectedInstructorIds,
+                selectedSkaterIds,
+                selectedSkaterByInstructor,
+                placementsByInstructor: {},
+              },
+              clock: LESSON_CLOCK_DEFAULT,
+            });
+
+            closeModal();
+            success("Lesson session started. Place each instructor on the skatepark.");
+          }}
+        />
+      ),
+    });
+  }, [
+    canStartLessonSession,
+    closeModal,
+    editingRoute,
+    hasAnySkateparkPiece,
+    hasSessionAvailableToday,
+    lessonSlotCapacity,
+    openModal,
+    playerInstructors,
+    playerSkaterPool,
+    success,
+    warning,
+  ]);
+
+  const onSelectLessonInstructorForPlacement = useCallback((instructorId) => {
+    if (gridMode !== "session" || sessionState.sessionType !== "lesson") return;
+    if (!sessionState.lesson?.isPlacementPhase) return;
+    if (!(sessionState.lesson?.selectedInstructorIds || []).includes(instructorId)) return;
+
+    setSessionState((prev) => ({
+      ...prev,
+      lesson: {
+        ...prev.lesson,
+        activePlacementInstructorId: instructorId,
+      },
+    }));
+  }, [gridMode, sessionState.lesson, sessionState.sessionType]);
+
   const onGoToEditMode = useCallback(() => {
     if (sessionState.isActive) return warning("Cannot edit skatepark while a session is active.");
     setGridMode("edit");
@@ -1183,12 +1597,14 @@ export const useGridModel = () => {
   );
 
   const canEndSession = useMemo(
-    () =>
-      gridMode === "session" &&
-      !sessionState.isActive &&
-      !sessionState.isTickRunning &&
-      sessionState.currentTick >= sessionState.maxTicks,
-    [gridMode, sessionState.currentTick, sessionState.isActive, sessionState.isTickRunning, sessionState.maxTicks]
+    () => {
+      if (gridMode !== "session" || sessionState.isTickRunning) return false;
+      if (sessionState.sessionType === "lesson") {
+        return !sessionState.lesson?.isPlacementPhase;
+      }
+      return !sessionState.isActive && sessionState.currentTick >= sessionState.maxTicks;
+    },
+    [gridMode, sessionState.currentTick, sessionState.isActive, sessionState.isTickRunning, sessionState.lesson, sessionState.maxTicks, sessionState.sessionType]
   );
 
   const onRecruitBeginnerSkater = useCallback(
@@ -1219,7 +1635,13 @@ export const useGridModel = () => {
   );
 
   const onEndSession = useCallback(() => {
-    if (!canEndSession) return warning("Session can only be ended after all ticks are complete.");
+    if (!canEndSession) {
+      return warning(
+        sessionState.sessionType === "lesson"
+          ? "Place all instructors before ending the lesson session."
+          : "Session can only be ended after all ticks are complete."
+      );
+    }
     const completedDayNumber = timeState.dayNumber;
     const completedWeek = Math.floor((completedDayNumber - 1) / DAYS_PER_WEEK) + 1;
     const completedDayName = DAY_NAMES[(completedDayNumber - 1) % DAYS_PER_WEEK];
@@ -1249,32 +1671,25 @@ export const useGridModel = () => {
 
     setGridMode("edit");
     setEditMode("build");
-    setSessionState({
-      isActive: false,
-      isTickRunning: false,
-      currentTick: 0,
-      maxTicks: SESSION_TICKS,
-      sessionType: "normal",
-      skaters: [],
-      beginnerCandidates: [],
-      assignments: {},
-      skaterPositions: {},
-      trickAttempts: [],
-      currentTickTrickAttempts: [],
-      recruitedSkaterIds: [],
-      retryQueue: {},
-      instructorTrickRating: 0,
-      activeRunTricks: {},
-      clock: SESSION_CLOCK_DEFAULT,
-    });
+    setSessionState(createDefaultSessionState());
     const nextDayNumber = completedDayNumber + 1;
     const nextWeek = Math.floor((nextDayNumber - 1) / DAYS_PER_WEEK) + 1;
     const nextDayName = DAY_NAMES[(nextDayNumber - 1) % DAYS_PER_WEEK];
     success(`Session ended. New day: ${nextDayName}, Week ${nextWeek}.`);
   }, [canEndSession, sessionState, success, timeState.dayNumber, warning]);
 
+  const onEndLessonSession = useCallback(() => {
+    if (gridMode !== "session" || sessionState.sessionType !== "lesson") return;
+    if (sessionState.lesson?.isPlacementPhase) {
+      warning("Place all instructors before ending the lesson session.");
+      return;
+    }
+    onEndSession();
+  }, [gridMode, onEndSession, sessionState.lesson, sessionState.sessionType, warning]);
+
   const onAdvanceTick = useCallback(async () => {
     if (gridMode !== "session" || !sessionState.isActive || sessionState.isTickRunning) return;
+    if (sessionState.sessionType === "lesson") return;
     const nextTick = sessionState.currentTick + 1;
     if (nextTick > SESSION_TICKS) return;
 
@@ -1584,6 +1999,7 @@ export const useGridModel = () => {
 
   useEffect(() => {
     if (gridMode !== "session") return;
+    if (sessionState.sessionType === "lesson") return;
     if (!sessionState.isActive || sessionState.isTickRunning) return;
     if (sessionState.currentTick >= sessionState.maxTicks) return;
 
@@ -1648,6 +2064,7 @@ export const useGridModel = () => {
     skatepark,
     occupancy,
     skaterMarkers,
+    instructorMarkers,
     standalonePieces,
     routePieces,
     sessionState,
@@ -1659,8 +2076,10 @@ export const useGridModel = () => {
     currentDayName,
     hasSessionAvailableToday,
     playerSkaterPool,
+    playerInstructors,
     canStartBeginnerSession,
     canStartNormalSession,
+    canStartLessonSession,
     canEndSession,
     canRecruitInSession,
     poolSpaceRemaining,
@@ -1674,9 +2093,16 @@ export const useGridModel = () => {
     onGridSizeChange,
     onStartBeginnerSession,
     onStartNormalSession,
+    onStartLessonSession,
     onRecruitBeginnerSkater,
     onEndSession,
+    onEndLessonSession,
+    onSelectLessonInstructorForPlacement,
     onGoToEditMode,
     getDropPreviewTiles,
+    lessonState,
+    lessonSelectedInstructors,
+    lessonSelectedSkaters,
+    lessonHighlightTileKeys,
   };
 };

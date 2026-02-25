@@ -33,11 +33,22 @@
   background: #6b7280;
 }
 
+.gridTile--highlighted {
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.9) inset, 0 0 12px rgba(56, 189, 248, 0.65);
+}
+
 .gridTile__skaters {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 2;
+}
+
+.gridTile__instructors {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
 }
 
 .gridTile__skater {
@@ -53,6 +64,22 @@
   font-weight: 700;
   border: 1px solid rgba(0, 0, 0, 0.35);
   overflow: visible;
+}
+
+.gridTile__instructor {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #111827;
+  background: #facc15;
+  font-size: 0.5rem;
+  font-weight: 800;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.75);
 }
 
 .gridTile__skaterTrick {
@@ -90,6 +117,26 @@
 }
 
 .gridTile__skater--slot4 {
+  bottom: 0;
+  right: 0;
+}
+
+.gridTile__instructor--slot1 {
+  top: 0;
+  left: 0;
+}
+
+.gridTile__instructor--slot2 {
+  top: 0;
+  right: 0;
+}
+
+.gridTile__instructor--slot3 {
+  bottom: 0;
+  left: 0;
+}
+
+.gridTile__instructor--slot4 {
   bottom: 0;
   right: 0;
 }

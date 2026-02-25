@@ -17,9 +17,10 @@ const hasSufficientGameState = (gameState) => {
   const hasUi = gameState?.ui != null && typeof gameState.ui === "object";
   const hasSkatepark = Array.isArray(gameState?.skatepark);
   const hasSkaterPool = Array.isArray(gameState?.player?.skaterPool);
+  const hasInstructors = Array.isArray(gameState?.player?.instructors);
   const hasTime = gameState?.time != null && typeof gameState.time === "object" && Number(gameState.time.dayNumber) >= 1;
 
-  return hasActiveGame && hasPlayer && hasUi && hasSkatepark && hasSkaterPool && hasTime;
+  return hasActiveGame && hasPlayer && hasUi && hasSkatepark && hasSkaterPool && hasInstructors && hasTime;
 };
 
 const RequireGameContext = ({ element }) => {

@@ -12,6 +12,7 @@ const Controls = ({
   sessionState,
   canStartBeginnerSession,
   canStartNormalSession,
+  canStartLessonSession,
   canEndSession,
   playerSkaterPoolCount,
   startingSpotsCapacity,
@@ -23,6 +24,7 @@ const Controls = ({
   onToggleDeleteMode,
   onStartBeginnerSession,
   onStartNormalSession,
+  onStartLessonSession,
   onEndSession,
 }) => {
   return (
@@ -36,10 +38,12 @@ const Controls = ({
       </div>
 
       <div className="gridControls__modeButtons">
-        {gridMode === "session" ? (
+        {gridMode === "session" && sessionState.sessionType !== "lesson" ? (
           <Button variant={BUTTON_VARIANT.PRIMARY} onClick={onEndSession} disabled={!canEndSession}>
             End Session
           </Button>
+        ) : gridMode === "session" ? (
+          <div className="gridControls__lessonNotice">Lesson controls are in the lesson panel.</div>
         ) : (
           <>
             <Button
@@ -56,6 +60,14 @@ const Controls = ({
               disabled={sessionState.isTickRunning || sessionState.isActive || !canStartNormalSession}
             >
               Start Normal Session
+            </Button>
+
+            <Button
+              variant={BUTTON_VARIANT.SECONDARY}
+              onClick={onStartLessonSession}
+              disabled={sessionState.isTickRunning || sessionState.isActive || !canStartLessonSession}
+            >
+              Start Lesson Session
             </Button>
           </>
         )}

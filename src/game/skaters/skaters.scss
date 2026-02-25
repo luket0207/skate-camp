@@ -38,6 +38,9 @@
   margin-top: 1rem;
   display: grid;
   gap: 0.8rem;
+  max-height: calc(100vh - 210px);
+  overflow-y: auto;
+  padding-right: 0.3rem;
 }
 
 .skatersPage__empty {
