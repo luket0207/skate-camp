@@ -25,6 +25,7 @@ const DEFAULT_GAME_STATE = Object.freeze({
     skaterPool: [],
     instructors: [],
     lessonLandingCounts: {},
+    edits: [],
   },
   ui: {
     top: "red",

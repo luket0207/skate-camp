@@ -127,6 +127,7 @@ const Skatepark = () => {
                   occupancy={model.occupancy}
                   skaterMarkers={model.skaterMarkers}
                   instructorMarkers={model.instructorMarkers}
+                  cameraMarkers={model.cameraMarkers}
                   editingRoute={model.editingRoute}
                   onCancelRoute={model.onCancelRoute}
                   onCommitRoute={model.onCommitRoute}
@@ -153,7 +154,9 @@ const Skatepark = () => {
                 canStartNormalSession={model.canStartNormalSession}
                 canStartLessonSession={model.canStartLessonSession}
                 canStartCompetitionSession={model.canStartCompetitionSession}
+                canStartVideoSession={model.canStartVideoSession}
                 canExecuteLessonTick={model.lessonTickReady}
+                canExecuteVideoTick={model.videoTickReady}
                 canEndSession={model.canEndSession}
                 playerSkaterPoolCount={model.playerSkaterPool.length}
                 startingSpotsCapacity={model.startingSpotsCapacity}
@@ -167,13 +170,19 @@ const Skatepark = () => {
                 onStartNormalSession={model.onStartNormalSession}
                 onStartLessonSession={model.onStartLessonSession}
                 onStartCompetitionSession={model.onStartCompetitionSession}
+                onStartVideoSession={model.onStartVideoSession}
                 onEndLessonSession={model.onEndLessonSession}
                 onEndCompetitionSession={model.onEndCompetitionSession}
+                onEndVideoSession={model.onEndVideoSession}
                 onExecuteLessonTick={model.onExecuteLessonTick}
+                onExecuteVideoTick={model.onExecuteVideoTick}
                 onEndSession={model.onEndSession}
               />
             ) : (
-              <CalendarControls onGoToSkatepark={() => setActiveTab("skatepark")} />
+              <CalendarControls
+                onGoToSkatepark={() => setActiveTab("skatepark")}
+                onOpenEdits={model.onOpenEditsModal}
+              />
             )}
           </div>
         </div>

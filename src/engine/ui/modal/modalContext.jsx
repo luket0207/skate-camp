@@ -20,6 +20,8 @@ export const ModalProvider = ({ children }) => {
     onClick: null,
     onYes: null,
     onNo: null,
+    showCloseButton: false,
+    closeOnBackdropClick: false,
   });
 
   const closeModal = useCallback(() => {
@@ -33,6 +35,8 @@ export const ModalProvider = ({ children }) => {
       onClick: null,
       onYes: null,
       onNo: null,
+      showCloseButton: false,
+      closeOnBackdropClick: false,
     }));
   }, []);
 
@@ -45,6 +49,8 @@ export const ModalProvider = ({ children }) => {
       onClick = null,
       onYes = null,
       onNo = null,
+      showCloseButton = false,
+      closeOnBackdropClick = false,
     } = {}) => {
       setModalState({
         isOpen: true,
@@ -55,6 +61,8 @@ export const ModalProvider = ({ children }) => {
         onClick,
         onYes,
         onNo,
+        showCloseButton,
+        closeOnBackdropClick,
       });
     },
     []
@@ -82,6 +90,8 @@ export const ModalProvider = ({ children }) => {
         onClick={modalState.onClick}
         onYes={modalState.onYes}
         onNo={modalState.onNo}
+        showCloseButton={modalState.showCloseButton}
+        closeOnBackdropClick={modalState.closeOnBackdropClick}
         onClose={closeModal}
       />
     </ModalContext.Provider>

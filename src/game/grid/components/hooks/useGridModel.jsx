@@ -61,6 +61,12 @@ const COMPETITION_CLOCK_DEFAULT = {
   ticksRemaining: COMPETITION_SESSION_TICKS,
   currentTick: 0,
 };
+const VIDEO_SESSION_TICKS = 10;
+const VIDEO_CLOCK_DEFAULT = {
+  totalTicks: VIDEO_SESSION_TICKS,
+  ticksRemaining: VIDEO_SESSION_TICKS,
+  currentTick: 0,
+};
 const DEFAULT_TIME_STATE = {
   dayNumber: 1,
   lastSessionDayNumber: 0,
@@ -498,6 +504,231 @@ const CompetitionSetupModal = ({ maxSlots, onStart }) => {
   );
 };
 
+const VideoSetupModal = ({ edits, availableSports = [], onStart }) => {
+  const safeSports = Array.isArray(availableSports) ? availableSports : [];
+  const fallbackSport = safeSports[0] || SKATER_SPORT.SKATEBOARDER;
+  const [mode, setMode] = React.useState("new");
+  const [name, setName] = React.useState("");
+  const [length, setLength] = React.useState(10);
+  const [sport, setSport] = React.useState(fallbackSport);
+  const [existingEditId, setExistingEditId] = React.useState(edits[0]?.id || "");
+  const canCreateNew = edits.length < 3;
+
+  return (
+    <div style={{ display: "grid", gap: "0.85rem" }}>
+      <div style={{ fontSize: "0.86rem", opacity: 0.9 }}>
+        Start a video session with sponsored skaters of the selected sport.
+      </div>
+
+      <label style={{ display: "grid", gap: "0.35rem" }}>
+        Edit Mode
+        <select
+          value={mode}
+          onChange={(event) => setMode(event.target.value)}
+        >
+          <option value="new" disabled={!canCreateNew}>New Edit</option>
+          <option value="existing" disabled={edits.length < 1}>Existing Edit</option>
+        </select>
+      </label>
+
+      {mode === "new" ? (
+        <>
+          <label style={{ display: "grid", gap: "0.35rem" }}>
+            Edit Name
+            <input
+              type="text"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Enter edit name"
+            />
+          </label>
+          <label style={{ display: "grid", gap: "0.35rem" }}>
+            Length (tricks)
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={length}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                if (!Number.isFinite(value)) return;
+                setLength(Math.max(1, Math.min(50, value)));
+              }}
+            />
+          </label>
+          <label style={{ display: "grid", gap: "0.35rem" }}>
+            Sport
+            <select value={sport} onChange={(event) => setSport(event.target.value)}>
+              <option value={SKATER_SPORT.SKATEBOARDER} disabled={!safeSports.includes(SKATER_SPORT.SKATEBOARDER)}>
+                Skateboarding
+              </option>
+              <option value={SKATER_SPORT.ROLLERBLADER} disabled={!safeSports.includes(SKATER_SPORT.ROLLERBLADER)}>
+                Rollerblading
+              </option>
+            </select>
+          </label>
+        </>
+      ) : (
+        <label style={{ display: "grid", gap: "0.35rem" }}>
+          Existing Edit
+          <select
+            value={existingEditId}
+            onChange={(event) => setExistingEditId(event.target.value)}
+          >
+            {edits.map((edit) => (
+              <option key={edit.id} value={edit.id}>
+                {edit.name} | {edit.sportType} | {edit.footage.length}/{edit.length}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      <Button
+        variant={BUTTON_VARIANT.PRIMARY}
+        disabled={
+          mode === "new"
+            ? !name.trim() || !canCreateNew || !safeSports.includes(sport)
+            : !existingEditId
+        }
+        onClick={() => onStart({
+          mode,
+          name: name.trim(),
+          length: Math.max(1, Number(length) || 1),
+          sport,
+          existingEditId,
+        })}
+      >
+        Start Video Session
+      </Button>
+    </div>
+  );
+};
+
+const VideoTickReviewModal = ({ landedEntries, onConfirm }) => {
+  const [selectedIds, setSelectedIds] = React.useState(() => new Set());
+
+  const toggle = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  return (
+    <div style={{ display: "grid", gap: "0.7rem", maxHeight: "60vh", overflowY: "auto" }}>
+      <strong>Video Session Tick Review</strong>
+      {landedEntries.length < 1 && <div>No landed tricks this tick.</div>}
+      {landedEntries.map((entry) => (
+        <label
+          key={entry.id}
+          style={{
+            display: "grid",
+            gap: "0.2rem",
+            border: "1px solid rgba(0,0,0,0.15)",
+            borderRadius: "8px",
+            padding: "0.45rem 0.55rem",
+            cursor: "pointer",
+          }}
+        >
+          <span style={{ display: "inline-flex", gap: "0.45rem", alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={selectedIds.has(entry.id)}
+              onChange={() => toggle(entry.id)}
+            />
+            <strong>{entry.trickName}</strong>
+          </span>
+          <span>{entry.skaterName} | {entry.type}</span>
+          <span>{entry.pieceName}{entry.pieceCoordinate ? ` (${entry.pieceCoordinate})` : ""} | {entry.trickPoints} pts</span>
+        </label>
+      ))}
+      <Button
+        variant={BUTTON_VARIANT.PRIMARY}
+        onClick={() => onConfirm(landedEntries.filter((entry) => selectedIds.has(entry.id)))}
+      >
+        Continue
+      </Button>
+    </div>
+  );
+};
+
+const VideoSessionResultsModal = ({ attempts = [], edit = null }) => {
+  const landed = attempts.filter((entry) => entry.landed);
+  return (
+    <div style={{ display: "grid", gap: "0.7rem", maxHeight: "60vh", overflowY: "auto" }}>
+      <strong>Video Session Results</strong>
+      <div style={{ fontSize: "0.84rem" }}>
+        Landed tricks: {landed.length} | Total attempts: {attempts.length}
+      </div>
+      {edit && (
+        <div style={{ fontSize: "0.84rem" }}>
+          Edit: <strong>{edit.name}</strong> | Footage: {(edit.footage || []).length}/{edit.length}
+        </div>
+      )}
+      {landed.length < 1 && <div style={{ fontSize: "0.84rem" }}>No landed tricks recorded.</div>}
+      {landed.map((entry) => (
+        <div
+          key={entry.id}
+          style={{
+            display: "grid",
+            gap: "0.2rem",
+            border: "1px solid rgba(0,0,0,0.15)",
+            borderRadius: "8px",
+            padding: "0.45rem 0.55rem",
+            fontSize: "0.8rem",
+          }}
+        >
+          <div><strong>{entry.trickName}</strong> ({entry.type})</div>
+          <div>{entry.skaterName} | {entry.pieceName}{entry.pieceCoordinate ? ` (${entry.pieceCoordinate})` : ""}</div>
+          <div>Points: {entry.trickPoints || 0}</div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const EditsLibraryModal = ({ edits = [] }) => {
+  return (
+    <div style={{ display: "grid", gap: "0.7rem", maxHeight: "65vh", overflowY: "auto" }}>
+      <strong>Edits Library</strong>
+      {edits.length < 1 && <div style={{ fontSize: "0.84rem" }}>No edits available.</div>}
+      {edits.map((edit) => (
+        <div
+          key={edit.id}
+          style={{
+            display: "grid",
+            gap: "0.35rem",
+            border: "1px solid rgba(0,0,0,0.18)",
+            borderRadius: "8px",
+            padding: "0.5rem 0.6rem",
+            fontSize: "0.82rem",
+          }}
+        >
+          <div><strong>{edit.name}</strong></div>
+          <div>Sport: {edit.sportType}</div>
+          <div>Length: {edit.length}</div>
+          <div>Footage: {Array.isArray(edit.footage) ? edit.footage.length : 0}/{edit.length}</div>
+          <div style={{ marginTop: "0.2rem" }}>
+            <strong>Footage Tricks</strong>
+          </div>
+          {(Array.isArray(edit.footage) ? edit.footage : []).length < 1 && (
+            <div style={{ opacity: 0.78 }}>No footage recorded yet.</div>
+          )}
+          {(Array.isArray(edit.footage) ? edit.footage : []).map((clip) => (
+            <div key={clip.id} style={{ borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: "0.25rem" }}>
+              {clip.trickName} | {clip.skaterName} | {clip.pieceName}
+              {clip.pieceCoordinate ? ` (${clip.pieceCoordinate})` : ""} | {clip.points} pts
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const LessonSetupModal = ({ instructors, skaters, maxInstructorCount, onStart }) => {
   const [selectedInstructorIds, setSelectedInstructorIds] = React.useState([]);
   const [selectedSkaterIds, setSelectedSkaterIds] = React.useState([]);
@@ -854,6 +1085,12 @@ const createDefaultSessionState = () => ({
     slots: 0,
     sponsoredCount: 0,
   },
+  video: {
+    editId: null,
+    selectedTargetId: null,
+    sport: null,
+    landedReviewPending: false,
+  },
   lesson: {
     isPlacementPhase: false,
     activePlacementInstructorId: null,
@@ -890,6 +1127,9 @@ export const useGridModel = () => {
   const [playerSkaterPool, setPlayerSkaterPool] = useState(() =>
     Array.isArray(gameState?.player?.skaterPool) ? gameState.player.skaterPool : []
   );
+  const [playerEdits, setPlayerEdits] = useState(() =>
+    Array.isArray(gameState?.player?.edits) ? gameState.player.edits : []
+  );
   const [playerInstructors, setPlayerInstructors] = useState(() =>
     normalizeInstructorList(gameState?.player?.instructors)
   );
@@ -914,6 +1154,10 @@ export const useGridModel = () => {
   }, [playerSkaterPool, setGameValue]);
 
   useEffect(() => {
+    setGameValue("player.edits", playerEdits);
+  }, [playerEdits, setGameValue]);
+
+  useEffect(() => {
     setGameValue("player.instructors", playerInstructors);
   }, [playerInstructors, setGameValue]);
 
@@ -925,6 +1169,11 @@ export const useGridModel = () => {
     const source = Array.isArray(gameState?.player?.instructors) ? gameState.player.instructors : [];
     setPlayerInstructors(normalizeInstructorList(source));
   }, [gameState?.player?.instructors]);
+
+  useEffect(() => {
+    const source = Array.isArray(gameState?.player?.edits) ? gameState.player.edits : [];
+    setPlayerEdits(source);
+  }, [gameState?.player?.edits]);
 
   useEffect(() => {
     const source = gameState?.player?.lessonLandingCounts;
@@ -1085,11 +1334,14 @@ export const useGridModel = () => {
         targetId: `lesson-standalone-${item.instanceId}`,
         label: `${item.name} (${toCoordinate(item.topLeft.row, item.topLeft.col)})`,
         type: "Standalone",
+        startCell: { row: item.topLeft.row, col: item.topLeft.col },
+        runTiles: item.tiles.map((tile) => ({ row: tile.row, col: tile.col })),
         tileKeys: item.tiles.map((tile) => makeTileKey(tile.row, tile.col)),
         runPieces: [
           {
             name: item.name,
             coordinate: toCoordinate(item.topLeft.row, item.topLeft.col),
+            trickOpportunities: item.trickOpportunities || 0,
             difficulty: item.difficulty || null,
           },
         ],
@@ -1100,10 +1352,13 @@ export const useGridModel = () => {
         targetId: `lesson-route-${route.routeId}`,
         label: `${route.name}`,
         type: "Route",
+        startCell: route.pieces[0] ? { row: route.pieces[0].row, col: route.pieces[0].col } : null,
+        runTiles: route.pieces.map((piece) => ({ row: piece.row, col: piece.col })),
         tileKeys: route.pieces.map((piece) => makeTileKey(piece.row, piece.col)),
         runPieces: route.pieces.map((piece) => ({
           name: piece.name,
           coordinate: piece.coordinates,
+          trickOpportunities: piece.trickOpportunities || 0,
           difficulty: piece.difficulty || null,
         })),
       });
@@ -1124,6 +1379,8 @@ export const useGridModel = () => {
     lessonTargets.forEach((target) => map.set(target.targetId, target));
     return map;
   }, [lessonTargets]);
+  const videoTargetById = lessonTargetById;
+  const videoTargetByTileKey = lessonTargetByTileKey;
 
   const allSkateparkRunPieces = useMemo(() => {
     const pieces = [];
@@ -1226,6 +1483,14 @@ export const useGridModel = () => {
       startingSpotsCapacity >= 4,
     [hasAnySkateparkPiece, hasSessionAvailableToday, sessionState.isActive, startingSpotsCapacity]
   );
+  const canStartVideoSession = useMemo(
+    () =>
+      hasAnySkateparkPiece &&
+      hasSessionAvailableToday &&
+      !sessionState.isActive &&
+      playerSkaterPool.some((skater) => Boolean(skater?.isSponsored)),
+    [hasAnySkateparkPiece, hasSessionAvailableToday, playerSkaterPool, sessionState.isActive]
+  );
 
   const skaterById = useMemo(() => {
     const map = new Map();
@@ -1273,6 +1538,24 @@ export const useGridModel = () => {
 
     return markersByTile;
   }, [gridMode, playerInstructors, sessionState.lesson?.placementsByInstructor, sessionState.sessionType]);
+
+  const cameraMarkers = useMemo(() => {
+    const markersByTile = new Map();
+    if (gridMode !== "session" || sessionState.sessionType !== "video") return markersByTile;
+    const selectedTargetId = sessionState.video?.selectedTargetId;
+    if (!selectedTargetId) return markersByTile;
+    const target = videoTargetById.get(selectedTargetId);
+    if (!target) return markersByTile;
+    const tileKeys = Array.isArray(target.tileKeys) ? target.tileKeys : [];
+    const firstTile = tileKeys[0];
+    if (!firstTile) return markersByTile;
+    markersByTile.set(firstTile, [{
+      id: `camera-${selectedTargetId}`,
+      initials: "CAM",
+      markerType: "camera",
+    }]);
+    return markersByTile;
+  }, [gridMode, sessionState.sessionType, sessionState.video?.selectedTargetId, videoTargetById]);
 
   const lessonState = useMemo(
     () => ({
@@ -1322,6 +1605,15 @@ export const useGridModel = () => {
     }
     return true;
   }, [gridMode, sessionState.currentTick, sessionState.isTickRunning, sessionState.lesson, sessionState.maxTicks, sessionState.sessionType]);
+
+  const videoTickReady = useMemo(() => {
+    if (gridMode !== "session" || sessionState.sessionType !== "video") return false;
+    if (!sessionState.isActive || sessionState.isTickRunning) return false;
+    if (sessionState.currentTick >= sessionState.maxTicks) return false;
+    if (!sessionState.video?.selectedTargetId) return false;
+    if (sessionState.video?.landedReviewPending) return false;
+    return true;
+  }, [gridMode, sessionState.currentTick, sessionState.isActive, sessionState.isTickRunning, sessionState.maxTicks, sessionState.sessionType, sessionState.video]);
 
   const lessonHighlightTileKeys = useMemo(() => {
     if (gridMode !== "session" || sessionState.sessionType !== "lesson") return new Set();
@@ -1727,6 +2019,20 @@ export const useGridModel = () => {
         return;
       }
 
+      if (gridMode === "session" && sessionState.sessionType === "video" && sessionState.isActive) {
+        const target = videoTargetByTileKey.get(makeTileKey(row, col));
+        if (!target) return;
+        setSessionState((prev) => ({
+          ...prev,
+          video: {
+            ...prev.video,
+            selectedTargetId: target.targetId,
+          },
+        }));
+        info(`Camera moved to ${target.label}.`);
+        return;
+      }
+
       if (gridMode !== "edit" || editMode !== "delete") return;
       const item = occupancy.get(makeTileKey(row, col));
       if (!item) return;
@@ -1763,10 +2069,12 @@ export const useGridModel = () => {
       gridMode,
       info,
       lessonTargetByTileKey,
+      videoTargetByTileKey,
       occupancy,
       openModal,
       removeRoute,
       removeStandalone,
+      sessionState.isActive,
       sessionState.lesson,
       sessionState.sessionType,
       success,
@@ -2072,6 +2380,117 @@ export const useGridModel = () => {
     warning,
   ]);
 
+  const onStartVideoSession = useCallback(() => {
+    if (editingRoute) return warning("Commit or cancel the current route first.");
+    if (!hasAnySkateparkPiece) return warning("Place at least one piece in the skatepark before starting a session.");
+    if (!hasSessionAvailableToday) return warning("You can only hold one session per day.");
+    if (!canStartVideoSession) return warning("Video session is not available right now.");
+    const sponsoredBySport = {
+      [SKATER_SPORT.SKATEBOARDER]: playerSkaterPool.some(
+        (skater) => Boolean(skater?.isSponsored) && skater?.sport === SKATER_SPORT.SKATEBOARDER
+      ),
+      [SKATER_SPORT.ROLLERBLADER]: playerSkaterPool.some(
+        (skater) => Boolean(skater?.isSponsored) && skater?.sport === SKATER_SPORT.ROLLERBLADER
+      ),
+    };
+    const availableSports = Object.entries(sponsoredBySport)
+      .filter(([, hasSponsored]) => hasSponsored)
+      .map(([sport]) => sport);
+    if (availableSports.length < 1) {
+      warning("You need at least one sponsored skater to start a video session.");
+      return;
+    }
+    const eligibleEdits = playerEdits.filter((edit) => sponsoredBySport[edit?.sportType]);
+
+    openModal({
+      modalTitle: "Setup Video Session",
+      buttons: MODAL_BUTTONS.NONE,
+      modalContent: (
+        <VideoSetupModal
+          edits={eligibleEdits}
+          availableSports={availableSports}
+          onStart={({ mode, name, length, sport, existingEditId }) => {
+            let editId = existingEditId;
+            let sessionSport = sport;
+            if (mode === "new") {
+              if (playerEdits.length >= 3) {
+                warning("You can only have up to 3 edits at one time.");
+                return;
+              }
+              const newEdit = {
+                id: `edit-${Date.now()}-${Math.random().toString(16).slice(2, 7)}`,
+                name: name || `Edit ${playerEdits.length + 1}`,
+                length: Math.max(1, Number(length) || 1),
+                sportType: sport,
+                footage: [],
+              };
+              editId = newEdit.id;
+              setPlayerEdits((prev) => [...prev, newEdit]);
+            } else {
+              const existing = playerEdits.find((item) => item.id === existingEditId);
+              if (!existing) {
+                warning("Selected edit could not be found.");
+                return;
+              }
+              sessionSport = existing.sportType;
+            }
+
+            if (mode !== "new") {
+              sessionSport = playerEdits.find((item) => item.id === editId)?.sportType || sessionSport;
+            }
+            if (!sponsoredBySport[sessionSport]) {
+              warning("No sponsored skaters available for that sport.");
+              return;
+            }
+            const sponsoredSkaters = playerSkaterPool.filter(
+              (skater) => skater?.isSponsored && skater?.sport === sessionSport
+            );
+            if (sponsoredSkaters.length < 1) {
+              warning("No sponsored skaters available for that sport.");
+              return;
+            }
+
+            const sessionSkaters = sponsoredSkaters.map((skater) => ({
+              ...skater,
+              arrivalTick: 1,
+              energy: VIDEO_SESSION_TICKS,
+            }));
+            setGridMode("session");
+            setEditMode("build");
+            setSessionState({
+              ...createDefaultSessionState(),
+              isActive: true,
+              currentTick: 0,
+              maxTicks: VIDEO_SESSION_TICKS,
+              sessionType: "video",
+              skaters: sessionSkaters,
+              clock: VIDEO_CLOCK_DEFAULT,
+              video: {
+                editId,
+                selectedTargetId: null,
+                sport: sessionSport,
+                landedReviewPending: false,
+              },
+            });
+            closeModal();
+            success("Video session started. Select a route or standalone each tick.");
+          }}
+        />
+      ),
+    });
+  }, [
+    canStartVideoSession,
+    closeModal,
+    editingRoute,
+    hasAnySkateparkPiece,
+    hasSessionAvailableToday,
+    openModal,
+    playerEdits,
+    playerSkaterPool,
+    success,
+    warning,
+  ]);
+
   const onStartLessonSession = useCallback(() => {
     if (editingRoute) return warning("Commit or cancel the current route first.");
     if (!hasAnySkateparkPiece) return warning("Place at least one piece in the skatepark before starting a session.");
@@ -2139,6 +2558,14 @@ export const useGridModel = () => {
     success,
     warning,
   ]);
+
+  const onOpenEditsModal = useCallback(() => {
+    openModal({
+      modalTitle: "Edits",
+      buttons: MODAL_BUTTONS.OK,
+      modalContent: <EditsLibraryModal edits={playerEdits} />,
+    });
+  }, [openModal, playerEdits]);
 
   const onSelectLessonInstructorForPlacement = useCallback((instructorId) => {
     if (gridMode !== "session" || sessionState.sessionType !== "lesson") return;
@@ -2593,6 +3020,274 @@ export const useGridModel = () => {
     warning,
   ]);
 
+  const onExecuteVideoTick = useCallback(async () => {
+    if (!videoTickReady) {
+      warning("Select a route or standalone piece before running the tick.");
+      return;
+    }
+    if (gridMode !== "session" || sessionState.sessionType !== "video") return;
+    const targetId = sessionState.video?.selectedTargetId;
+    const target = targetId ? videoTargetById.get(targetId) : null;
+    if (!target) {
+      warning("Selected camera target is invalid.");
+      return;
+    }
+
+    const nextTick = sessionState.currentTick + 1;
+    if (nextTick > sessionState.maxTicks) return;
+
+    const tickStartMs = Date.now();
+    const assignments = {};
+    const startPositions = {};
+    const tickAttemptLog = [];
+    const runSkaters = [...sessionState.skaters];
+    const runTargetStart = target.startCell || (target.runTiles?.[0] || parseTileKey(target.tileKeys?.[0]));
+
+    runSkaters.forEach((skater) => {
+      assignments[skater.id] = target.targetId;
+      if (runTargetStart) {
+        startPositions[skater.id] = { row: runTargetStart.row, col: runTargetStart.col };
+      }
+    });
+
+    setSessionState((prev) => ({
+      ...prev,
+      isTickRunning: true,
+      currentTick: nextTick,
+      assignments,
+      skaterPositions: startPositions,
+      activeRunTricks: {},
+      clock: {
+        totalTicks: prev.maxTicks,
+        currentTick: nextTick,
+        ticksRemaining: Math.max(0, prev.maxTicks - nextTick),
+      },
+      video: {
+        ...prev.video,
+        landedReviewPending: false,
+      },
+    }));
+
+    for (const skater of runSkaters) {
+      const priorResultsForSkater = [...sessionState.trickAttempts, ...tickAttemptLog].filter(
+        (entry) => entry.skaterId === skater.id
+      );
+      const attempts = buildTrickAttemptsForRun({
+        skater,
+        target,
+        allSkateparkPieces: allSkateparkRunPieces,
+        priorSessionResults: priorResultsForSkater,
+        difficultyBiasBoost: 0.75,
+        allowGlobalFallback: false,
+      });
+      const validAttempts = attempts.filter((attempt) => attempt?.type && attempt?.coreName && attempt?.pieceDifficulty);
+      const attempt = validAttempts
+        .sort((a, b) => ((b.coreLevel * 2) + b.variantLevel) - ((a.coreLevel * 2) + a.variantLevel))[0] || attempts[0];
+
+      if (!attempt?.type || !attempt?.coreName || !attempt?.pieceDifficulty) {
+        tickAttemptLog.push({
+          id: `${nextTick}-${skater.id}-${Math.random().toString(16).slice(2, 8)}`,
+          tick: nextTick,
+          skaterId: skater.id,
+          skaterName: skater.name,
+          skaterInitials: skater.initials,
+          skaterColor: skater.color,
+          sport: skater.sport,
+          targetLabel: target.label,
+          type: attempt?.type || null,
+          trickName: attempt?.trickName || "No Attempt",
+          pieceName: attempt?.pieceName || target.label,
+          pieceCoordinate: attempt?.pieceCoordinate || null,
+          pieceDifficulty: attempt?.pieceDifficulty || 0,
+          landed: false,
+          control: 0,
+          trickPoints: 0,
+          status: "No Attempt",
+        });
+        continue;
+      }
+
+      const skillLevel = getSkillLevel(skater);
+      const { trickDifficulty, trickChance } = getTrickChanceValues({
+        coreLevel: attempt.coreLevel,
+        variantLevel: attempt.variantLevel,
+        pieceDifficulty: attempt.pieceDifficulty,
+        skillLevel,
+        switchDifficultyIncreasePercent: attempt.switchDifficultyIncreasePercent || 0,
+      });
+      const landChanceBase = getLandChanceFromTrickChance(trickChance);
+      const landChance = applyPieceDifficultyBailPenalty(landChanceBase, attempt.pieceDifficulty);
+      const controlRange = getControlRangeForLandChance(landChance);
+      const landed = randomIntInclusive(1, 100) <= landChance;
+      const control = landed ? randomIntInclusive(controlRange.min, controlRange.max) : 0;
+      const steezeScore = landed
+        ? getTrickSteezeScore({
+          skaterSteezeRating: skater.steezeRating,
+          pieceDifficulty: attempt.pieceDifficulty,
+          control,
+        })
+        : 1;
+      const landedBefore = [...sessionState.trickAttempts, ...tickAttemptLog].some(
+        (entry) => entry.skaterId === skater.id && entry.landed && entry.comboKey && entry.comboKey === attempt.comboKey
+      );
+      const isRepeatInSession = landed && landedBefore;
+      const basePoints = getBasePointsForTrick(attempt.type, attempt.coreLevel, attempt.variantLevel);
+      const trickPoints = getTrickPoints({
+        basePoints,
+        pieceDifficulty: attempt.pieceDifficulty,
+        steezeScore,
+        landed,
+        isRepeatInSession,
+        isSwitch: Boolean(attempt.isSwitch),
+      });
+
+      tickAttemptLog.push({
+        id: `${nextTick}-${skater.id}-${Math.random().toString(16).slice(2, 8)}`,
+        tick: nextTick,
+        skaterId: skater.id,
+        skaterName: skater.name,
+        skaterInitials: skater.initials,
+        skaterColor: skater.color,
+        sport: skater.sport,
+        targetLabel: target.label,
+        type: attempt.type,
+        trickName: attempt.trickName,
+        coreName: attempt.coreName,
+        coreLevel: attempt.coreLevel,
+        variantName: attempt.variantNames.length > 0 ? attempt.variantNames.join(" + ") : null,
+        variantNames: attempt.variantNames,
+        variantLevel: attempt.variantLevel,
+        pieceName: attempt.pieceName,
+        pieceCoordinate: attempt.pieceCoordinate,
+        pieceDifficulty: attempt.pieceDifficulty,
+        comboKey: attempt.comboKey,
+        attemptNumber: 1,
+        isSwitch: Boolean(attempt.isSwitch),
+        switchDifficultyIncreasePercent: Number(attempt.switchDifficultyIncreasePercent || 0),
+        trickTypeRating: skillLevel,
+        landed,
+        control,
+        landChance,
+        difficultyScore: trickDifficulty,
+        successScore: skillLevel,
+        steezeScore,
+        resultScore: trickChance,
+        basePoints,
+        trickPoints,
+        status: landed ? "Landed" : "Bailed",
+        willRetry: false,
+        isRepeatInSession,
+      });
+
+      if (attempt?.trickName) {
+        setSessionState((prev) => ({
+          ...prev,
+          activeRunTricks: {
+            ...prev.activeRunTricks,
+            [skater.id]: attempt.trickName,
+          },
+        }));
+      }
+      await animateSkaterOnTarget(skater.id, target);
+      if (attempt?.trickName) {
+        setSessionState((prev) => {
+          const nextActiveRunTricks = { ...prev.activeRunTricks };
+          delete nextActiveRunTricks[skater.id];
+          return {
+            ...prev,
+            activeRunTricks: nextActiveRunTricks,
+          };
+        });
+      }
+    }
+
+    const elapsedMs = Date.now() - tickStartMs;
+    if (elapsedMs < MIN_TICK_DURATION_MS) {
+      await sleep(MIN_TICK_DURATION_MS - elapsedMs);
+    }
+
+    const landedEntries = tickAttemptLog.filter((entry) => entry.landed && Number(entry.trickPoints || 0) > 0);
+    const sessionEndedByTicks = nextTick >= sessionState.maxTicks;
+
+    setSessionState((prev) => ({
+      ...prev,
+      isTickRunning: false,
+      isActive: sessionEndedByTicks ? false : prev.isActive,
+      trickAttempts: [...prev.trickAttempts, ...tickAttemptLog],
+      currentTickTrickAttempts: tickAttemptLog,
+      activeRunTricks: {},
+      video: {
+        ...prev.video,
+        landedReviewPending: landedEntries.length > 0,
+      },
+    }));
+
+    if (landedEntries.length > 0) {
+      openModal({
+        modalTitle: "Select Footage",
+        buttons: MODAL_BUTTONS.NONE,
+        modalContent: (
+          <VideoTickReviewModal
+            landedEntries={landedEntries}
+            onConfirm={(selectedEntries) => {
+              let didFillEdit = false;
+              setPlayerEdits((prev) => prev.map((edit) => {
+                if (edit.id !== sessionState.video?.editId) return edit;
+                const nextFootage = [
+                  ...(Array.isArray(edit.footage) ? edit.footage : []),
+                  ...selectedEntries.map((entry) => ({
+                    id: entry.id,
+                    tick: entry.tick,
+                    skaterId: entry.skaterId,
+                    skaterName: entry.skaterName,
+                    trickName: entry.trickName,
+                    type: entry.type,
+                    pieceName: entry.pieceName,
+                    pieceCoordinate: entry.pieceCoordinate || null,
+                    points: Number(entry.trickPoints || 0),
+                  })),
+                ];
+                didFillEdit = nextFootage.length >= Number(edit.length || 0);
+                return {
+                  ...edit,
+                  footage: nextFootage,
+                };
+              }));
+
+              setSessionState((prev) => ({
+                ...prev,
+                isActive: didFillEdit ? false : prev.isActive,
+                currentTick: didFillEdit ? prev.maxTicks : prev.currentTick,
+                clock: didFillEdit
+                  ? { ...prev.clock, currentTick: prev.maxTicks, ticksRemaining: 0 }
+                  : prev.clock,
+                video: {
+                  ...prev.video,
+                  landedReviewPending: false,
+                },
+              }));
+              closeModal();
+            }}
+          />
+        ),
+      });
+    } else if (sessionEndedByTicks) {
+      success("Video session ended after 10 ticks.");
+    }
+  }, [
+    allSkateparkRunPieces,
+    animateSkaterOnTarget,
+    closeModal,
+    gridMode,
+    openModal,
+    playerEdits,
+    sessionState,
+    success,
+    videoTargetById,
+    videoTickReady,
+    warning,
+  ]);
+
   const onGoToEditMode = useCallback(() => {
     if (sessionState.isActive) return warning("Cannot edit skatepark while a session is active.");
     setGridMode("edit");
@@ -2636,6 +3331,9 @@ export const useGridModel = () => {
       if (gridMode !== "session" || sessionState.isTickRunning) return false;
       if (sessionState.sessionType === "lesson") {
         return !sessionState.lesson?.isPlacementPhase && sessionState.currentTick >= sessionState.maxTicks;
+      }
+      if (sessionState.sessionType === "video") {
+        return !sessionState.isActive && sessionState.currentTick >= sessionState.maxTicks;
       }
       return !sessionState.isActive && sessionState.currentTick >= sessionState.maxTicks;
     },
@@ -2786,6 +3484,20 @@ export const useGridModel = () => {
       return next;
     });
 
+    if (sessionState.sessionType === "video") {
+      setPlayerEdits((prev) => {
+        const targetEditId = sessionState.video?.editId;
+        if (!targetEditId) return prev;
+        return prev.filter((edit) => {
+          if (edit.id !== targetEditId) return true;
+          const length = Number(edit.length || 0);
+          const footageCount = Array.isArray(edit.footage) ? edit.footage.length : 0;
+          // Releasing an edit removes it for now.
+          return footageCount < length;
+        });
+      });
+    }
+
     setGridMode("edit");
     setEditMode("build");
     setSessionState(createDefaultSessionState());
@@ -2883,6 +3595,35 @@ export const useGridModel = () => {
     sessionState.sessionType,
     sessionState.skaters,
     sessionState.trickAttempts,
+    warning,
+  ]);
+
+  const onEndVideoSession = useCallback(() => {
+    if (gridMode !== "session" || sessionState.sessionType !== "video") return;
+    if (!canEndSession) {
+      warning("Complete the video session before ending it.");
+      return;
+    }
+    const activeEdit = playerEdits.find((item) => item.id === sessionState.video?.editId) || null;
+    openModal({
+      modalTitle: "Video Session Complete",
+      buttons: MODAL_BUTTONS.OK,
+      modalContent: <VideoSessionResultsModal attempts={sessionState.trickAttempts || []} edit={activeEdit} />,
+      onClick: () => {
+        closeModal();
+        onEndSession();
+      },
+    });
+  }, [
+    canEndSession,
+    closeModal,
+    gridMode,
+    onEndSession,
+    openModal,
+    playerEdits,
+    sessionState.sessionType,
+    sessionState.trickAttempts,
+    sessionState.video?.editId,
     warning,
   ]);
 
@@ -3209,7 +3950,7 @@ export const useGridModel = () => {
 
   useEffect(() => {
     if (gridMode !== "session") return;
-    if (sessionState.sessionType === "lesson") return;
+    if (sessionState.sessionType === "lesson" || sessionState.sessionType === "video") return;
     if (!sessionState.isActive || sessionState.isTickRunning) return;
     if (sessionState.currentTick >= sessionState.maxTicks) return;
 
@@ -3275,6 +4016,7 @@ export const useGridModel = () => {
     occupancy,
     skaterMarkers,
     instructorMarkers,
+    cameraMarkers,
     standalonePieces,
     routePieces,
     sessionState,
@@ -3291,7 +4033,9 @@ export const useGridModel = () => {
     canStartNormalSession,
     canStartLessonSession,
     canStartCompetitionSession,
+    canStartVideoSession,
     lessonTickReady,
+    videoTickReady,
     canEndSession,
     canRecruitInSession,
     poolSpaceRemaining,
@@ -3307,14 +4051,18 @@ export const useGridModel = () => {
     onStartNormalSession,
     onStartLessonSession,
     onStartCompetitionSession,
+    onStartVideoSession,
     onRecruitBeginnerSkater,
     onEndSession,
     onEndLessonSession,
     onEndCompetitionSession,
+    onEndVideoSession,
     onSelectLessonInstructorForPlacement,
     onUpdateLessonTickAssignment,
     onRandomizeLessonTickAssignments,
     onExecuteLessonTick,
+    onExecuteVideoTick,
+    onOpenEditsModal,
     onGoToEditMode,
     getDropPreviewTiles,
     lessonState,

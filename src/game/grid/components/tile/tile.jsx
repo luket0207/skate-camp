@@ -1,6 +1,6 @@
 import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPerson, faPersonSkating, faPersonSnowboarding } from "@fortawesome/free-solid-svg-icons";
+import { faCamera, faPerson, faPersonSkating, faPersonSnowboarding } from "@fortawesome/free-solid-svg-icons";
 import "./tile.scss";
 
 const Tile = ({
@@ -9,6 +9,7 @@ const Tile = ({
   occupant,
   skaters,
   instructors,
+  cameras,
   onDrop,
   onClick,
   onDragHover,
@@ -66,6 +67,7 @@ const Tile = ({
   };
 
   const getMarkerIcon = (marker) => {
+    if (marker?.markerType === "camera") return faCamera;
     if (marker?.markerType === "instructor") return faPerson;
     if (marker?.sport === "Rollerblader") return faPersonSkating;
     return faPersonSnowboarding;
@@ -120,6 +122,20 @@ const Tile = ({
             >
               <FontAwesomeIcon icon={getMarkerIcon(instructor)} className="gridTile__markerIcon" />
               <span className="gridTile__markerLozenge">{instructor.initials}</span>
+            </span>
+          ))}
+        </span>
+      )}
+      {cameras?.length > 0 && (
+        <span className="gridTile__instructors">
+          {cameras.slice(0, 1).map((camera, index) => (
+            <span
+              key={camera.id}
+              className={`gridTile__instructor gridTile__instructor--slot${index + 1}`}
+              title={camera.initials}
+            >
+              <FontAwesomeIcon icon={getMarkerIcon(camera)} className="gridTile__markerIcon" />
+              <span className="gridTile__markerLozenge">{camera.initials || "CAM"}</span>
             </span>
           ))}
         </span>

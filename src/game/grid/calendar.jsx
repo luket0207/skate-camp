@@ -60,7 +60,7 @@ const Calendar = ({ timeState, dayAdvanceToken = 0 }) => {
   );
 };
 
-export const CalendarControls = ({ onGoToSkatepark }) => {
+export const CalendarControls = ({ onGoToSkatepark, onOpenEdits }) => {
   return (
     <div className="calendarControls">
       <h3>Calendar Controls</h3>
@@ -69,6 +69,9 @@ export const CalendarControls = ({ onGoToSkatepark }) => {
       </Button>
       <Button variant={BUTTON_VARIANT.SECONDARY} to="/instructors">
         Instructors
+      </Button>
+      <Button variant={BUTTON_VARIANT.SECONDARY} onClick={onOpenEdits}>
+        Edits
       </Button>
       <Button variant={BUTTON_VARIANT.TERTIARY} onClick={onGoToSkatepark}>
         Go to Skatepark

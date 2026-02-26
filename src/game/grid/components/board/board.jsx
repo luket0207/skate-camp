@@ -9,6 +9,7 @@ const Board = ({
   occupancy,
   skaterMarkers,
   instructorMarkers,
+  cameraMarkers,
   editingRoute,
   onCancelRoute,
   onCommitRoute,
@@ -65,6 +66,7 @@ const Board = ({
             occupant={occupancy.get(key)}
             skaters={skaterMarkers.get(key) || []}
             instructors={instructorMarkers?.get(key) || []}
+            cameras={cameraMarkers?.get(key) || []}
             onDrop={onTileDrop}
             onClick={onTileClick}
             onDragHover={handleTileDragHover}

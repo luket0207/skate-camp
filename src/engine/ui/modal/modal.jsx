@@ -44,6 +44,8 @@ const Modal = ({
   onYes,
   onNo,
   onClose,
+  showCloseButton = false,
+  closeOnBackdropClick = false,
 }) => {
   const footerConfig = useMemo(() => {
     const safeClose = typeof onClose === "function" ? onClose : () => {};
@@ -82,16 +84,18 @@ const Modal = ({
       role="presentation"
       onMouseDown={(e) => {
         // Close when clicking the backdrop only (not the modal itself)
-        if (e.target === e.currentTarget) footerConfig.safeClose();
+        if (closeOnBackdropClick && e.target === e.currentTarget) footerConfig.safeClose();
       }}
     >
       <div className="modal" role="dialog" aria-modal="true" aria-label={title || "Modal"}>
         <div className="modal__header">
           <div className="modal__title">{title || "Modal"}</div>
 
-          <button type="button" className="modal__close" onClick={footerConfig.safeClose} aria-label="Close modal">
-            <FontAwesomeIcon icon={faXmark} />
-          </button>
+          {showCloseButton && (
+            <button type="button" className="modal__close" onClick={footerConfig.safeClose} aria-label="Close modal">
+              <FontAwesomeIcon icon={faXmark} />
+            </button>
+          )}
         </div>
 
         <div className="modal__body">{content || <h2>Modal</h2>}</div>

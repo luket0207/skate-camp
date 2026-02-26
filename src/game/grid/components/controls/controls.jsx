@@ -16,7 +16,9 @@ const Controls = ({
   canStartNormalSession,
   canStartLessonSession,
   canStartCompetitionSession,
+  canStartVideoSession,
   canExecuteLessonTick,
+  canExecuteVideoTick,
   canEndSession,
   playerSkaterPoolCount,
   startingSpotsCapacity,
@@ -30,9 +32,12 @@ const Controls = ({
   onStartNormalSession,
   onStartLessonSession,
   onStartCompetitionSession,
+  onStartVideoSession,
   onEndLessonSession,
   onEndCompetitionSession,
+  onEndVideoSession,
   onExecuteLessonTick,
+  onExecuteVideoTick,
   onEndSession,
 }) => {
   return (
@@ -56,6 +61,19 @@ const Controls = ({
               Start
             </Button>
             <Button variant={BUTTON_VARIANT.SECONDARY} onClick={onEndLessonSession} disabled={!canEndSession}>
+              End Session
+            </Button>
+          </>
+        ) : gridMode === "session" && sessionState.sessionType === "video" ? (
+          <>
+            <Button
+              variant={BUTTON_VARIANT.PRIMARY}
+              onClick={onExecuteVideoTick}
+              disabled={!canExecuteVideoTick}
+            >
+              Start
+            </Button>
+            <Button variant={BUTTON_VARIANT.SECONDARY} onClick={onEndVideoSession} disabled={!canEndSession}>
               End Session
             </Button>
           </>
@@ -101,6 +119,14 @@ const Controls = ({
               disabled={sessionState.isTickRunning || sessionState.isActive || !canStartCompetitionSession}
             >
               Start Competition Session
+            </Button>
+
+            <Button
+              variant={BUTTON_VARIANT.SECONDARY}
+              onClick={onStartVideoSession}
+              disabled={sessionState.isTickRunning || sessionState.isActive || !canStartVideoSession}
+            >
+              Start Video Session
             </Button>
           </>
         )}
