@@ -114,7 +114,7 @@ const Skatepark = () => {
 
             {activeTab === "calendar" && (
               <div className="skatepark__paletteWrap">
-                <CalendarDataPanel instructors={model.playerInstructors} />
+                <CalendarDataPanel instructors={model.playerInstructors} skaters={model.playerSkaterPool} />
               </div>
             )}
           </div>

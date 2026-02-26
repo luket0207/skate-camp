@@ -28,6 +28,26 @@
   font-weight: 700;
 }
 
+.instructorsPage__tabs {
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.instructorsPage__tab {
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.14);
+  color: $lightText;
+  border-radius: 8px;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.instructorsPage__tab--active {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.75);
+}
+
 .instructorsPage__list {
   display: grid;
   gap: 0.8rem;
@@ -70,4 +90,41 @@
   flex-wrap: wrap;
   gap: 0.35rem 0.65rem;
   font-size: 0.8rem;
+}
+
+.instructorsPage__metaGrid {
+  display: grid;
+  gap: 0.24rem;
+}
+
+.instructorsPage__metaRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+}
+
+.instructorsPage__label {
+  opacity: 0.78;
+}
+
+.instructorsPage__value {
+  font-weight: 700;
+  text-align: right;
+}
+
+.instructorsPage__ratingsTitle {
+  margin-top: 0.15rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.84;
+}
+
+.instructorsPage__empty {
+  color: $lightText;
+  font-size: 0.86rem;
+  opacity: 0.85;
 }

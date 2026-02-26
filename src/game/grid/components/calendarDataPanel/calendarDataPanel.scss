@@ -15,6 +15,25 @@
   font-size: 0.95rem;
 }
 
+.calendarDataPanel__columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.calendarDataPanel__col {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.calendarDataPanel__scroll {
+  display: grid;
+  gap: 0.4rem;
+  max-height: 300px;
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
 .calendarDataPanel__item {
   padding: 0.45rem;
   border-radius: 8px;
@@ -29,11 +48,6 @@
   font-size: 0.75rem;
   line-height: 1.35;
   opacity: 0.86;
-}
-
-.calendarDataPanel__metaGrid {
-  display: grid;
-  gap: 0.24rem;
 }
 
 .calendarDataPanel__metaRow {
@@ -53,16 +67,13 @@
   text-align: right;
 }
 
-.calendarDataPanel__ratingsTitle {
-  margin-top: 0.2rem;
-  font-size: 0.73rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  opacity: 0.82;
-}
-
 .calendarDataPanel__empty {
   font-size: 0.8rem;
   opacity: 0.75;
+}
+
+@media (max-width: 1000px) {
+  .calendarDataPanel__columns {
+    grid-template-columns: 1fr;
+  }
 }
