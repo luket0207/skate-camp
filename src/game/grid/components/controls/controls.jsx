@@ -12,11 +12,10 @@ const Controls = ({
   gridMode,
   editMode,
   sessionState,
-  canStartBeginnerSession,
-  canStartNormalSession,
-  canStartLessonSession,
-  canStartCompetitionSession,
-  canStartVideoSession,
+  canStartTodaySession,
+  todaySessionTypeLabel,
+  isTutorialDayOne,
+  canAdvanceTutorialDay,
   canExecuteLessonTick,
   canExecuteVideoTick,
   canEndSession,
@@ -28,11 +27,8 @@ const Controls = ({
   hasSessionAvailableToday,
   onGridSizeChange,
   onToggleDeleteMode,
-  onStartBeginnerSession,
-  onStartNormalSession,
-  onStartLessonSession,
-  onStartCompetitionSession,
-  onStartVideoSession,
+  onStartTodaySession,
+  onAdvanceTutorialDay,
   onEndLessonSession,
   onEndCompetitionSession,
   onEndVideoSession,
@@ -89,45 +85,23 @@ const Controls = ({
           )
         ) : (
           <>
-            <Button
-              variant={BUTTON_VARIANT.PRIMARY}
-              onClick={onStartBeginnerSession}
-              disabled={sessionState.isTickRunning || sessionState.isActive || !canStartBeginnerSession}
-            >
-              Start Beginner Session
-            </Button>
-
-            <Button
-              variant={BUTTON_VARIANT.SECONDARY}
-              onClick={onStartNormalSession}
-              disabled={sessionState.isTickRunning || sessionState.isActive || !canStartNormalSession}
-            >
-              Start Normal Session
-            </Button>
-
-            <Button
-              variant={BUTTON_VARIANT.SECONDARY}
-              onClick={onStartLessonSession}
-              disabled={sessionState.isTickRunning || sessionState.isActive || !canStartLessonSession}
-            >
-              Start Lesson Session
-            </Button>
-
-            <Button
-              variant={BUTTON_VARIANT.SECONDARY}
-              onClick={onStartCompetitionSession}
-              disabled={sessionState.isTickRunning || sessionState.isActive || !canStartCompetitionSession}
-            >
-              Start Competition Session
-            </Button>
-
-            <Button
-              variant={BUTTON_VARIANT.SECONDARY}
-              onClick={onStartVideoSession}
-              disabled={sessionState.isTickRunning || sessionState.isActive || !canStartVideoSession}
-            >
-              Start Video Session
-            </Button>
+            {isTutorialDayOne ? (
+              <Button
+                variant={BUTTON_VARIANT.PRIMARY}
+                onClick={onAdvanceTutorialDay}
+                disabled={sessionState.isTickRunning || sessionState.isActive || !canAdvanceTutorialDay}
+              >
+                Next Day
+              </Button>
+            ) : (
+              <Button
+                variant={BUTTON_VARIANT.PRIMARY}
+                onClick={onStartTodaySession}
+                disabled={sessionState.isTickRunning || sessionState.isActive || !canStartTodaySession}
+              >
+                {`Start ${todaySessionTypeLabel} Session`}
+              </Button>
+            )}
           </>
         )}
       </div>

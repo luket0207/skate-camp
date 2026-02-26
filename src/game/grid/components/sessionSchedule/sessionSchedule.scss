@@ -1,0 +1,64 @@
+@use "../../../../assets/scss/ui/import" as *;
+
+.sessionSchedule {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  padding: 0.75rem;
+  color: $darkText;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.sessionSchedule h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.sessionSchedule__list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.sessionSchedule__item {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  padding: 0.45rem;
+  background: rgba(0, 0, 0, 0.04);
+  display: grid;
+  gap: 0.25rem;
+}
+
+.sessionSchedule__item--disabled {
+  opacity: 0.55;
+}
+
+.sessionSchedule__name {
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.sessionSchedule__reason {
+  font-size: 0.72rem;
+  opacity: 0.8;
+}
+
+.sessionSchedule__chip {
+  border: 1px dashed rgba(0, 0, 0, 0.35);
+  border-radius: 999px;
+  padding: 0.26rem 0.5rem;
+  font-size: 0.74rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.75);
+  cursor: grab;
+  user-select: none;
+}
+
+.sessionSchedule__removeZone {
+  border: 2px dashed rgba(0, 0, 0, 0.28);
+  border-radius: 8px;
+  padding: 0.5rem;
+  font-size: 0.76rem;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.04);
+}

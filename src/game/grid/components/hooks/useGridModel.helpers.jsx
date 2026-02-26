@@ -253,12 +253,14 @@ export const normalizeTimeState = (timeState) => {
   const lastSessionDayNumber = Math.max(0, Number(timeState.lastSessionDayNumber) || 0);
   const sessionsCompleted = Math.max(0, Number(timeState.sessionsCompleted) || 0);
   const sessionHistory = Array.isArray(timeState.sessionHistory) ? timeState.sessionHistory : [];
+  const sessionSchedule = Array.isArray(timeState.sessionSchedule) ? timeState.sessionSchedule : [];
 
   return {
     dayNumber,
     lastSessionDayNumber,
     sessionsCompleted,
     sessionHistory,
+    sessionSchedule,
   };
 };
 

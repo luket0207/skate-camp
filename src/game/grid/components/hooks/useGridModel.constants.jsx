@@ -34,6 +34,7 @@ export const DEFAULT_TIME_STATE = {
   lastSessionDayNumber: 0,
   sessionsCompleted: 0,
   sessionHistory: [],
+  sessionSchedule: [],
 };
 
 export const TRICK_POINTS_MATRIX = {

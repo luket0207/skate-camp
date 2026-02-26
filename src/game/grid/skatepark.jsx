@@ -4,6 +4,7 @@ import PiecePalette from "./components/piecePalette/piecePalette";
 import SessionPanel from "./components/sessionPanel/sessionPanel";
 import LessonPanel from "./components/lessonPanel/lessonPanel";
 import CalendarDataPanel from "./components/calendarDataPanel/calendarDataPanel";
+import SessionSchedule from "./components/sessionSchedule/sessionSchedule";
 import Board from "./components/board/board";
 import Calendar, { CalendarControls } from "./calendar";
 import { useGridModel } from "./components/hooks/useGridModel";
@@ -115,6 +116,11 @@ const Skatepark = () => {
             {activeTab === "calendar" && (
               <div className="skatepark__paletteWrap">
                 <CalendarDataPanel instructors={model.playerInstructors} skaters={model.playerSkaterPool} />
+                <SessionSchedule
+                  availability={model.sessionScheduleAvailability}
+                  onDragTemplateStart={model.onScheduleDragStart}
+                  onDropRemoveScheduled={model.onScheduleRemoveDrop}
+                />
               </div>
             )}
           </div>
@@ -139,7 +145,13 @@ const Skatepark = () => {
                 />
               </div>
             ) : (
-              <Calendar timeState={model.timeState} dayAdvanceToken={dayAdvanceToken} />
+              <Calendar
+                timeState={model.timeState}
+                dayAdvanceToken={dayAdvanceToken}
+                scheduledSessions={model.scheduledSessions}
+                onDropSessionToDay={model.onScheduleDropToDay}
+                onDragScheduledStart={model.onScheduleDragStart}
+              />
             )}
           </div>
 
@@ -150,11 +162,10 @@ const Skatepark = () => {
                 gridMode={model.gridMode}
                 editMode={model.editMode}
                 sessionState={model.sessionState}
-                canStartBeginnerSession={model.canStartBeginnerSession}
-                canStartNormalSession={model.canStartNormalSession}
-                canStartLessonSession={model.canStartLessonSession}
-                canStartCompetitionSession={model.canStartCompetitionSession}
-                canStartVideoSession={model.canStartVideoSession}
+                canStartTodaySession={model.canStartTodaySession}
+                todaySessionTypeLabel={model.todaySessionTypeLabel}
+                isTutorialDayOne={model.isTutorialDayOne}
+                canAdvanceTutorialDay={model.canAdvanceTutorialDay}
                 canExecuteLessonTick={model.lessonTickReady}
                 canExecuteVideoTick={model.videoTickReady}
                 canEndSession={model.canEndSession}
@@ -166,11 +177,8 @@ const Skatepark = () => {
                 hasSessionAvailableToday={model.hasSessionAvailableToday}
                 onGridSizeChange={model.onGridSizeChange}
                 onToggleDeleteMode={model.onToggleDeleteMode}
-                onStartBeginnerSession={model.onStartBeginnerSession}
-                onStartNormalSession={model.onStartNormalSession}
-                onStartLessonSession={model.onStartLessonSession}
-                onStartCompetitionSession={model.onStartCompetitionSession}
-                onStartVideoSession={model.onStartVideoSession}
+                onStartTodaySession={model.onStartTodaySession}
+                onAdvanceTutorialDay={model.onAdvanceTutorialDay}
                 onEndLessonSession={model.onEndLessonSession}
                 onEndCompetitionSession={model.onEndCompetitionSession}
                 onEndVideoSession={model.onEndVideoSession}

@@ -98,6 +98,7 @@ import {
 } from "./useGridModel.modals";
 
 const chooseRandom = (items) => items[randomIntInclusive(0, items.length - 1)];
+const getWeekFromDay = (dayNumber) => Math.floor((dayNumber - 1) / DAYS_PER_WEEK) + 1;
 
 const buildLessonTeachAttempt = ({
   skater,
@@ -246,6 +247,7 @@ export const useGridModel = () => {
 
   const standaloneCounterRef = useRef(1);
   const routeCounterRef = useRef(1);
+  const tutorialAutoStartDayRef = useRef(null);
 
   useEffect(() => {
     setGameValue("skatepark", skatepark);
@@ -593,6 +595,85 @@ export const useGridModel = () => {
       playerSkaterPool.some((skater) => Boolean(skater?.isSponsored)),
     [hasAnySkateparkPiece, hasSessionAvailableToday, playerSkaterPool, sessionState.isActive]
   );
+
+  const scheduledSessions = useMemo(
+    () => (Array.isArray(timeState?.sessionSchedule) ? timeState.sessionSchedule : []),
+    [timeState?.sessionSchedule]
+  );
+
+  const scheduledSessionByDay = useMemo(() => {
+    const map = new Map();
+    scheduledSessions.forEach((entry) => {
+      const day = Number(entry?.dayNumber || 0);
+      if (day > 0) map.set(day, entry);
+    });
+    return map;
+  }, [scheduledSessions]);
+
+  const todayScheduledSession = useMemo(
+    () => scheduledSessionByDay.get(timeState.dayNumber) || null,
+    [scheduledSessionByDay, timeState.dayNumber]
+  );
+  const isTutorialDayOne = useMemo(
+    () => timeState.dayNumber === 1 && Number(timeState.sessionsCompleted || 0) === 0,
+    [timeState.dayNumber, timeState.sessionsCompleted]
+  );
+  const hasTutorialInstructor = useMemo(
+    () => playerInstructors.length > 0,
+    [playerInstructors.length]
+  );
+  const hasTutorialMiniRamp = useMemo(
+    () => placedStandalone.some((item) => typeof item?.name === "string" && item.name.toLowerCase().includes("mini ramp")),
+    [placedStandalone]
+  );
+  const hasTutorialBeginnerTomorrow = useMemo(
+    () =>
+      scheduledSessions.some(
+        (entry) =>
+          entry?.type === "beginner" &&
+          Number(entry?.dayNumber || 0) === timeState.dayNumber + 1
+      ),
+    [scheduledSessions, timeState.dayNumber]
+  );
+
+  const canScheduleCompetitionSession = useMemo(
+    () => hasAnySkateparkPiece && !sessionState.isActive && startingSpotsCapacity >= 4,
+    [hasAnySkateparkPiece, sessionState.isActive, startingSpotsCapacity]
+  );
+  const canScheduleVideoSession = useMemo(
+    () =>
+      hasAnySkateparkPiece &&
+      !sessionState.isActive &&
+      playerSkaterPool.some((skater) => Boolean(skater?.isSponsored)),
+    [hasAnySkateparkPiece, playerSkaterPool, sessionState.isActive]
+  );
+  const canScheduleLessonSession = useMemo(
+    () =>
+      hasAnySkateparkPiece &&
+      !sessionState.isActive &&
+      playerSkaterPool.length > 0 &&
+      availableLessonInstructors.length > 0 &&
+      lessonSlotCapacity > 0,
+    [availableLessonInstructors.length, hasAnySkateparkPiece, lessonSlotCapacity, playerSkaterPool.length, sessionState.isActive]
+  );
+  const canScheduleBeginnerSession = useMemo(
+    () =>
+      hasAnySkateparkPiece &&
+      !sessionState.isActive &&
+      startingSpotsCapacity >= 2 &&
+      availableLessonInstructors.length > 0 &&
+      (playerSkaterPool.length === 0 || startingSpotsCapacity > playerSkaterPool.length),
+    [availableLessonInstructors.length, hasAnySkateparkPiece, playerSkaterPool.length, sessionState.isActive, startingSpotsCapacity]
+  );
+
+  const todaySessionTypeLabel = useMemo(() => {
+    const type = todayScheduledSession?.type || "normal";
+    if (type === "beginner") return "Beginner";
+    if (type === "lesson") return "Lesson";
+    if (type === "competition") return "Competition";
+    if (type === "video") return "Video";
+    return "Normal";
+  }, [todayScheduledSession?.type]);
 
   const skaterById = useMemo(() => {
     const map = new Map();
@@ -1367,6 +1448,152 @@ export const useGridModel = () => {
     [success]
   );
 
+  const startBeginnerSessionForSport = useCallback((sport) => {
+    const count = Math.ceil(startingSpotsCapacity / 2);
+    const generatedSkaters = Array.from({ length: count }, () => generateBeginnerSkater(sport));
+    startSessionWithSkaters("beginner", generatedSkaters);
+  }, [startSessionWithSkaters, startingSpotsCapacity]);
+
+  const startLessonSessionFromSetup = useCallback((setup, { slotsAlreadyReserved = false } = {}) => {
+    const selectedInstructorIds = Array.isArray(setup?.selectedInstructorIds) ? setup.selectedInstructorIds : [];
+    const selectedSkaterIds = Array.isArray(setup?.selectedSkaterIds) ? setup.selectedSkaterIds : [];
+    const selectedSkaterByInstructor = {};
+    selectedInstructorIds.forEach((instructorId, index) => {
+      selectedSkaterByInstructor[instructorId] = selectedSkaterIds[index] || null;
+    });
+
+    setGridMode("session");
+    setEditMode("build");
+    setSessionState({
+      ...createDefaultSessionState(),
+      isActive: true,
+      currentTick: 0,
+      maxTicks: LESSON_SESSION_TICKS,
+      sessionType: "lesson",
+      skaters: selectedSkaterIds
+        .map((skaterId) => playerSkaterPool.find((skater) => skater.id === skaterId))
+        .filter(Boolean),
+      lesson: {
+        isPlacementPhase: true,
+        activePlacementInstructorId: selectedInstructorIds[0] || null,
+        selectedInstructorIds,
+        selectedSkaterIds,
+        selectedSkaterByInstructor,
+        placementsByInstructor: {},
+        slotsAlreadyReserved,
+      },
+      clock: LESSON_CLOCK_DEFAULT,
+    });
+    success("Lesson session started. Place each instructor on the skatepark.");
+  }, [playerSkaterPool, success]);
+
+  const startCompetitionSessionFromSetup = useCallback((setup) => {
+    const maxSlots = Math.min(15, startingSpotsCapacity);
+    const slotCount = Math.max(4, Math.min(maxSlots, Number(setup?.slots) || 4));
+    const sport = setup?.sport || SKATER_SPORT.SKATEBOARDER;
+    const level = setup?.level || "beginner";
+    const sponsoredLimit = Math.floor(slotCount / 2);
+    const sponsoredEligible = shuffleItems(
+      playerSkaterPool.filter((skater) => skater?.isSponsored && skater?.sport === sport)
+    );
+    const sponsoredPicked = sponsoredEligible.slice(0, sponsoredLimit);
+
+    const generatorByLevel = {
+      beginner: generateBeginnerSkater,
+      "semi-pro": generateMediumSkater,
+      pro: generateProSkater,
+    };
+    const generator = generatorByLevel[level] || generateBeginnerSkater;
+
+    const guestsNeeded = Math.max(0, slotCount - sponsoredPicked.length);
+    const guestSkaters = Array.from({ length: guestsNeeded }, (_, index) => ({
+      ...generator(sport),
+      id: `competition-guest-${Date.now()}-${index}-${Math.random().toString(16).slice(2, 6)}`,
+      isSponsored: false,
+    }));
+
+    const competitionSkaters = [...sponsoredPicked, ...guestSkaters].slice(0, slotCount);
+    startSessionWithSkaters("competition", competitionSkaters, {
+      slots: slotCount,
+      sport,
+      level,
+      sponsoredCount: sponsoredPicked.length,
+    });
+  }, [playerSkaterPool, startSessionWithSkaters, startingSpotsCapacity]);
+
+  const startVideoSessionFromSetup = useCallback((setup) => {
+    const sponsoredBySport = {
+      [SKATER_SPORT.SKATEBOARDER]: playerSkaterPool.some(
+        (skater) => Boolean(skater?.isSponsored) && skater?.sport === SKATER_SPORT.SKATEBOARDER
+      ),
+      [SKATER_SPORT.ROLLERBLADER]: playerSkaterPool.some(
+        (skater) => Boolean(skater?.isSponsored) && skater?.sport === SKATER_SPORT.ROLLERBLADER
+      ),
+    };
+
+    const mode = setup?.mode || "new";
+    let editId = setup?.existingEditId || null;
+    let sessionSport = setup?.sport || SKATER_SPORT.SKATEBOARDER;
+    if (mode === "new") {
+      if (playerEdits.length >= 3) {
+        warning("You can only have up to 3 edits at one time.");
+        return;
+      }
+      const newEdit = {
+        id: `edit-${Date.now()}-${Math.random().toString(16).slice(2, 7)}`,
+        name: setup?.name || `Edit ${playerEdits.length + 1}`,
+        length: Math.max(1, Number(setup?.length) || 1),
+        sportType: sessionSport,
+        footage: [],
+      };
+      editId = newEdit.id;
+      setPlayerEdits((prev) => [...prev, newEdit]);
+    } else {
+      const existing = playerEdits.find((item) => item.id === editId);
+      if (!existing) {
+        warning("Selected edit could not be found.");
+        return;
+      }
+      sessionSport = existing.sportType;
+    }
+
+    if (!sponsoredBySport[sessionSport]) {
+      warning("No sponsored skaters available for that sport.");
+      return;
+    }
+    const sponsoredSkaters = playerSkaterPool.filter(
+      (skater) => skater?.isSponsored && skater?.sport === sessionSport
+    );
+    if (sponsoredSkaters.length < 1) {
+      warning("No sponsored skaters available for that sport.");
+      return;
+    }
+
+    const sessionSkaters = sponsoredSkaters.map((skater) => ({
+      ...skater,
+      arrivalTick: 1,
+      energy: VIDEO_SESSION_TICKS,
+    }));
+    setGridMode("session");
+    setEditMode("build");
+    setSessionState({
+      ...createDefaultSessionState(),
+      isActive: true,
+      currentTick: 0,
+      maxTicks: VIDEO_SESSION_TICKS,
+      sessionType: "video",
+      skaters: sessionSkaters,
+      clock: VIDEO_CLOCK_DEFAULT,
+      video: {
+        editId,
+        selectedTargetId: null,
+        sport: sessionSport,
+        landedReviewPending: false,
+      },
+    });
+    success("Video session started. Select a route or standalone each tick.");
+  }, [playerEdits, playerSkaterPool, success, warning]);
+
   const onStartBeginnerSession = useCallback(() => {
     if (editingRoute) return warning("Commit or cancel the current route first.");
     if (!hasAnySkateparkPiece) return warning("Place at least one piece in the skatepark before starting a session.");
@@ -1379,10 +1606,8 @@ export const useGridModel = () => {
       modalContent: (
         <BeginnerSportModal
           onChoose={(sport) => {
-            const count = Math.ceil(startingSpotsCapacity / 2);
-            const generatedSkaters = Array.from({ length: count }, () => generateBeginnerSkater(sport));
             closeModal();
-            startSessionWithSkaters("beginner", generatedSkaters);
+            startBeginnerSessionForSport(sport);
           }}
         />
       ),
@@ -1394,8 +1619,7 @@ export const useGridModel = () => {
     hasAnySkateparkPiece,
     hasSessionAvailableToday,
     openModal,
-    startSessionWithSkaters,
-    startingSpotsCapacity,
+    startBeginnerSessionForSport,
     warning,
   ]);
 
@@ -1436,34 +1660,7 @@ export const useGridModel = () => {
         <CompetitionSetupModal
           maxSlots={maxSlots}
           onStart={({ slots, sport, level }) => {
-            const slotCount = Math.max(4, Math.min(maxSlots, Number(slots) || 4));
-            const sponsoredLimit = Math.floor(slotCount / 2);
-            const sponsoredEligible = shuffleItems(
-              playerSkaterPool.filter((skater) => skater?.isSponsored && skater?.sport === sport)
-            );
-            const sponsoredPicked = sponsoredEligible.slice(0, sponsoredLimit);
-
-            const generatorByLevel = {
-              beginner: generateBeginnerSkater,
-              "semi-pro": generateMediumSkater,
-              pro: generateProSkater,
-            };
-            const generator = generatorByLevel[level] || generateBeginnerSkater;
-
-            const guestsNeeded = Math.max(0, slotCount - sponsoredPicked.length);
-            const guestSkaters = Array.from({ length: guestsNeeded }, (_, index) => ({
-              ...generator(sport),
-              id: `competition-guest-${Date.now()}-${index}-${Math.random().toString(16).slice(2, 6)}`,
-              isSponsored: false,
-            }));
-
-            const competitionSkaters = [...sponsoredPicked, ...guestSkaters].slice(0, slotCount);
-            startSessionWithSkaters("competition", competitionSkaters, {
-              slots: slotCount,
-              sport,
-              level,
-              sponsoredCount: sponsoredPicked.length,
-            });
+            startCompetitionSessionFromSetup({ slots, sport, level });
             closeModal();
           }}
         />
@@ -1476,8 +1673,7 @@ export const useGridModel = () => {
     hasAnySkateparkPiece,
     hasSessionAvailableToday,
     openModal,
-    playerSkaterPool,
-    startSessionWithSkaters,
+    startCompetitionSessionFromSetup,
     startingSpotsCapacity,
     warning,
   ]);
@@ -1512,70 +1708,8 @@ export const useGridModel = () => {
           edits={eligibleEdits}
           availableSports={availableSports}
           onStart={({ mode, name, length, sport, existingEditId }) => {
-            let editId = existingEditId;
-            let sessionSport = sport;
-            if (mode === "new") {
-              if (playerEdits.length >= 3) {
-                warning("You can only have up to 3 edits at one time.");
-                return;
-              }
-              const newEdit = {
-                id: `edit-${Date.now()}-${Math.random().toString(16).slice(2, 7)}`,
-                name: name || `Edit ${playerEdits.length + 1}`,
-                length: Math.max(1, Number(length) || 1),
-                sportType: sport,
-                footage: [],
-              };
-              editId = newEdit.id;
-              setPlayerEdits((prev) => [...prev, newEdit]);
-            } else {
-              const existing = playerEdits.find((item) => item.id === existingEditId);
-              if (!existing) {
-                warning("Selected edit could not be found.");
-                return;
-              }
-              sessionSport = existing.sportType;
-            }
-
-            if (mode !== "new") {
-              sessionSport = playerEdits.find((item) => item.id === editId)?.sportType || sessionSport;
-            }
-            if (!sponsoredBySport[sessionSport]) {
-              warning("No sponsored skaters available for that sport.");
-              return;
-            }
-            const sponsoredSkaters = playerSkaterPool.filter(
-              (skater) => skater?.isSponsored && skater?.sport === sessionSport
-            );
-            if (sponsoredSkaters.length < 1) {
-              warning("No sponsored skaters available for that sport.");
-              return;
-            }
-
-            const sessionSkaters = sponsoredSkaters.map((skater) => ({
-              ...skater,
-              arrivalTick: 1,
-              energy: VIDEO_SESSION_TICKS,
-            }));
-            setGridMode("session");
-            setEditMode("build");
-            setSessionState({
-              ...createDefaultSessionState(),
-              isActive: true,
-              currentTick: 0,
-              maxTicks: VIDEO_SESSION_TICKS,
-              sessionType: "video",
-              skaters: sessionSkaters,
-              clock: VIDEO_CLOCK_DEFAULT,
-              video: {
-                editId,
-                selectedTargetId: null,
-                sport: sessionSport,
-                landedReviewPending: false,
-              },
-            });
+            startVideoSessionFromSetup({ mode, name, length, sport, existingEditId });
             closeModal();
-            success("Video session started. Select a route or standalone each tick.");
           }}
         />
       ),
@@ -1588,8 +1722,7 @@ export const useGridModel = () => {
     hasSessionAvailableToday,
     openModal,
     playerEdits,
-    playerSkaterPool,
-    success,
+    startVideoSessionFromSetup,
     warning,
   ]);
 
@@ -1613,35 +1746,8 @@ export const useGridModel = () => {
           skaters={playerSkaterPool}
           maxInstructorCount={maxInstructorCount}
           onStart={(selectedInstructorIds, selectedSkaterIds) => {
-            const selectedSkaterByInstructor = {};
-            selectedInstructorIds.forEach((instructorId, index) => {
-              selectedSkaterByInstructor[instructorId] = selectedSkaterIds[index] || null;
-            });
-
-            setGridMode("session");
-            setEditMode("build");
-            setSessionState({
-              ...createDefaultSessionState(),
-              isActive: true,
-              currentTick: 0,
-              maxTicks: LESSON_SESSION_TICKS,
-              sessionType: "lesson",
-              skaters: selectedSkaterIds
-                .map((skaterId) => playerSkaterPool.find((skater) => skater.id === skaterId))
-                .filter(Boolean),
-              lesson: {
-                isPlacementPhase: true,
-                activePlacementInstructorId: selectedInstructorIds[0] || null,
-                selectedInstructorIds,
-                selectedSkaterIds,
-                selectedSkaterByInstructor,
-                placementsByInstructor: {},
-              },
-              clock: LESSON_CLOCK_DEFAULT,
-            });
-
+            startLessonSessionFromSetup({ selectedInstructorIds, selectedSkaterIds });
             closeModal();
-            success("Lesson session started. Place each instructor on the skatepark.");
           }}
         />
       ),
@@ -1657,9 +1763,451 @@ export const useGridModel = () => {
     openModal,
     playerInstructors.length,
     playerSkaterPool,
+    startLessonSessionFromSetup,
+    warning,
+  ]);
+
+  const applyInstructorSlotDelta = useCallback((instructorIds = [], delta = 0) => {
+    if (!Array.isArray(instructorIds) || instructorIds.length < 1 || delta === 0) return;
+    const idSet = new Set(instructorIds);
+    setPlayerInstructors((prev) =>
+      prev.map((instructor) => {
+        if (!idSet.has(instructor.id)) return instructor;
+        const base = Math.max(0, Number(instructor.lessonSlotsBase ?? instructor.lessonSlots ?? 0));
+        const current = Math.max(0, Number(instructor.lessonSlotsRemaining ?? base));
+        const next = clamp(current + delta, 0, base);
+        return {
+          ...instructor,
+          lessonSlotsRemaining: next,
+        };
+      })
+    );
+  }, []);
+
+  const canScheduleOnDay = useCallback((dayNumber) => {
+    const targetDay = Number(dayNumber || 0);
+    if (!Number.isInteger(targetDay) || targetDay <= timeState.dayNumber) return false;
+    const targetWeek = getWeekFromDay(targetDay);
+    const maxWeek = currentDayName === "Sun" ? currentWeek + 1 : currentWeek;
+    return targetWeek <= maxWeek;
+  }, [currentDayName, currentWeek, timeState.dayNumber]);
+
+  const addScheduledSession = useCallback(({ dayNumber, type, setup = null, reservedInstructorIds = [] }) => {
+    setTimeState((prev) => {
+      const nextSchedule = Array.isArray(prev.sessionSchedule) ? [...prev.sessionSchedule] : [];
+      if (nextSchedule.some((entry) => Number(entry.dayNumber) === Number(dayNumber))) return prev;
+      nextSchedule.push({
+        id: `sched-${Date.now()}-${Math.random().toString(16).slice(2, 7)}`,
+        dayNumber: Number(dayNumber),
+        week: getWeekFromDay(Number(dayNumber)),
+        type,
+        setup,
+        reservedInstructorIds: Array.isArray(reservedInstructorIds) ? reservedInstructorIds : [],
+      });
+      return {
+        ...prev,
+        sessionSchedule: nextSchedule,
+      };
+    });
+  }, []);
+
+  const scheduleBeginnerSession = useCallback((dayNumber) => {
+    if (!canScheduleBeginnerSession) return warning("Beginner session cannot be scheduled right now.");
+    const selectable = availableLessonInstructors.filter((instructor) => Number(instructor.lessonSlotsRemaining || 0) > 0);
+    if (selectable.length < 1) return warning("No instructors have lesson slots available this week.");
+
+    const BeginnerScheduleModal = ({ instructors, onConfirm }) => {
+      const [instructorId, setInstructorId] = useState(instructors[0]?.id || "");
+      const [sport, setSport] = useState(SKATER_SPORT.SKATEBOARDER);
+      return (
+        <div style={{ display: "grid", gap: "0.7rem" }}>
+          <label style={{ display: "grid", gap: "0.3rem" }}>
+            Instructor
+            <select value={instructorId} onChange={(event) => setInstructorId(event.target.value)}>
+              {instructors.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} ({item.lessonSlotsRemaining} slots left)
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: "grid", gap: "0.3rem" }}>
+            Sport
+            <select value={sport} onChange={(event) => setSport(event.target.value)}>
+              <option value={SKATER_SPORT.SKATEBOARDER}>Skateboarding</option>
+              <option value={SKATER_SPORT.ROLLERBLADER}>Rollerblading</option>
+            </select>
+          </label>
+          <button type="button" className="btn btn--primary" onClick={() => onConfirm({ instructorId, sport })}>
+            Confirm
+          </button>
+        </div>
+      );
+    };
+
+    openModal({
+      modalTitle: "Schedule Beginner Session",
+      buttons: MODAL_BUTTONS.NONE,
+      modalContent: (
+        <BeginnerScheduleModal
+          instructors={selectable}
+          onConfirm={({ instructorId, sport }) => {
+            const instructor = selectable.find((item) => item.id === instructorId);
+            if (!instructor) return;
+            const targetWeek = getWeekFromDay(Number(dayNumber));
+            if (targetWeek === currentWeek) {
+              applyInstructorSlotDelta([instructorId], -1);
+            }
+            addScheduledSession({
+              dayNumber,
+              type: "beginner",
+              setup: {
+                instructorId,
+                instructorName: instructor.name,
+                sport,
+              },
+              reservedInstructorIds: [instructorId],
+            });
+            closeModal();
+            success("Beginner session scheduled.");
+          }}
+        />
+      ),
+    });
+  }, [addScheduledSession, applyInstructorSlotDelta, availableLessonInstructors, canScheduleBeginnerSession, closeModal, currentWeek, openModal, success, warning]);
+
+  const scheduleLessonSession = useCallback((dayNumber) => {
+    if (!canScheduleLessonSession) return warning("Lesson session cannot be scheduled right now.");
+    const maxInstructorCount = Math.min(lessonSlotCapacity, availableLessonInstructors.length);
+    openModal({
+      modalTitle: "Schedule Lesson Session",
+      buttons: MODAL_BUTTONS.NONE,
+      modalContent: (
+        <LessonSetupModal
+          instructors={availableLessonInstructors}
+          skaters={playerSkaterPool}
+          maxInstructorCount={maxInstructorCount}
+          onStart={(selectedInstructorIds, selectedSkaterIds) => {
+            const targetWeek = getWeekFromDay(Number(dayNumber));
+            if (targetWeek === currentWeek) {
+              applyInstructorSlotDelta(selectedInstructorIds, -1);
+            }
+            addScheduledSession({
+              dayNumber,
+              type: "lesson",
+              setup: {
+                selectedInstructorIds,
+                selectedSkaterIds,
+              },
+              reservedInstructorIds: selectedInstructorIds,
+            });
+            closeModal();
+            success("Lesson session scheduled.");
+          }}
+        />
+      ),
+    });
+  }, [
+    addScheduledSession,
+    applyInstructorSlotDelta,
+    availableLessonInstructors,
+    canScheduleLessonSession,
+    closeModal,
+    currentWeek,
+    lessonSlotCapacity,
+    openModal,
+    playerSkaterPool,
     success,
     warning,
   ]);
+
+  const scheduleCompetitionSession = useCallback((dayNumber) => {
+    if (!canScheduleCompetitionSession) return warning("Competition session cannot be scheduled right now.");
+    const maxSlots = Math.min(15, startingSpotsCapacity);
+    openModal({
+      modalTitle: "Schedule Competition Session",
+      buttons: MODAL_BUTTONS.NONE,
+      modalContent: (
+        <CompetitionSetupModal
+          maxSlots={maxSlots}
+          onStart={({ slots, sport, level }) => {
+            addScheduledSession({
+              dayNumber,
+              type: "competition",
+              setup: { slots, sport, level },
+            });
+            closeModal();
+            success("Competition session scheduled.");
+          }}
+        />
+      ),
+    });
+  }, [addScheduledSession, canScheduleCompetitionSession, closeModal, openModal, startingSpotsCapacity, success, warning]);
+
+  const scheduleVideoSession = useCallback((dayNumber) => {
+    if (!canScheduleVideoSession) return warning("Video session cannot be scheduled right now.");
+    const sponsoredBySport = {
+      [SKATER_SPORT.SKATEBOARDER]: playerSkaterPool.some(
+        (skater) => Boolean(skater?.isSponsored) && skater?.sport === SKATER_SPORT.SKATEBOARDER
+      ),
+      [SKATER_SPORT.ROLLERBLADER]: playerSkaterPool.some(
+        (skater) => Boolean(skater?.isSponsored) && skater?.sport === SKATER_SPORT.ROLLERBLADER
+      ),
+    };
+    const availableSports = Object.entries(sponsoredBySport)
+      .filter(([, hasSponsored]) => hasSponsored)
+      .map(([sport]) => sport);
+    const eligibleEdits = playerEdits.filter((edit) => sponsoredBySport[edit?.sportType]);
+    openModal({
+      modalTitle: "Schedule Video Session",
+      buttons: MODAL_BUTTONS.NONE,
+      modalContent: (
+        <VideoSetupModal
+          edits={eligibleEdits}
+          availableSports={availableSports}
+          onStart={({ mode, name, length, sport, existingEditId }) => {
+            addScheduledSession({
+              dayNumber,
+              type: "video",
+              setup: { mode, name, length, sport, existingEditId },
+            });
+            closeModal();
+            success("Video session scheduled.");
+          }}
+        />
+      ),
+    });
+  }, [addScheduledSession, canScheduleVideoSession, closeModal, openModal, playerEdits, playerSkaterPool, success, warning]);
+
+  const onScheduleDropToDay = useCallback((dayNumber, payload) => {
+    if (isTutorialDayOne) {
+      if (payload?.kind === "template") {
+        if (payload?.sessionType !== "beginner") {
+          warning("Tutorial Day 1: schedule a Beginner session for tomorrow.");
+          return;
+        }
+        if (Number(dayNumber) !== timeState.dayNumber + 1) {
+          warning("Tutorial Day 1: the Beginner session must be scheduled for tomorrow.");
+          return;
+        }
+      } else if (payload?.kind === "scheduled") {
+        warning("Tutorial Day 1: keep the beginner session scheduled for tomorrow.");
+        return;
+      }
+    }
+
+    if (!canScheduleOnDay(dayNumber)) {
+      warning("That day cannot be scheduled yet.");
+      return;
+    }
+    if (scheduledSessionByDay.has(Number(dayNumber))) {
+      warning("Only one session can be scheduled per day.");
+      return;
+    }
+    if (payload?.kind === "template") {
+      const type = payload.sessionType;
+      if (type === "beginner") return scheduleBeginnerSession(dayNumber);
+      if (type === "lesson") return scheduleLessonSession(dayNumber);
+      if (type === "competition") return scheduleCompetitionSession(dayNumber);
+      if (type === "video") return scheduleVideoSession(dayNumber);
+      return;
+    }
+    if (payload?.kind === "scheduled") {
+      const entry = scheduledSessions.find((item) => item.id === payload.scheduleId);
+      if (!entry) return;
+      if (Number(entry.dayNumber) <= timeState.dayNumber) {
+        warning("Current or past sessions are fixed and cannot be moved.");
+        return;
+      }
+      setTimeState((prev) => ({
+        ...prev,
+        sessionSchedule: (prev.sessionSchedule || []).map((item) =>
+          item.id === entry.id
+            ? { ...item, dayNumber: Number(dayNumber), week: getWeekFromDay(Number(dayNumber)) }
+            : item
+        ),
+      }));
+      success("Session moved.");
+    }
+  }, [
+    canScheduleOnDay,
+    isTutorialDayOne,
+    scheduleBeginnerSession,
+    scheduleCompetitionSession,
+    scheduleLessonSession,
+    scheduleVideoSession,
+    scheduledSessionByDay,
+    scheduledSessions,
+    success,
+    timeState.dayNumber,
+    warning,
+  ]);
+
+  const onScheduleRemoveDrop = useCallback((payload) => {
+    if (payload?.kind !== "scheduled") return;
+    const entry = scheduledSessions.find((item) => item.id === payload.scheduleId);
+    if (!entry) return;
+    if (
+      isTutorialDayOne &&
+      entry.type === "beginner" &&
+      Number(entry.dayNumber) === timeState.dayNumber + 1
+    ) {
+      warning("Tutorial Day 1: keep the beginner session scheduled for tomorrow.");
+      return;
+    }
+    if (Number(entry.dayNumber) <= timeState.dayNumber) {
+      warning("Current or past sessions are fixed and cannot be removed.");
+      return;
+    }
+    if (Number(entry.week) === currentWeek) {
+      applyInstructorSlotDelta(entry.reservedInstructorIds || [], +1);
+    }
+    setTimeState((prev) => ({
+      ...prev,
+      sessionSchedule: (prev.sessionSchedule || []).filter((item) => item.id !== entry.id),
+    }));
+    success("Scheduled session removed.");
+  }, [applyInstructorSlotDelta, currentWeek, isTutorialDayOne, scheduledSessions, success, timeState.dayNumber, warning]);
+
+  const sessionScheduleAvailability = useMemo(() => ({
+    beginner: {
+      enabled: canScheduleBeginnerSession,
+      reason: canScheduleBeginnerSession ? "" : "Needs a valid park and at least 1 instructor slot.",
+    },
+    lesson: {
+      enabled: !isTutorialDayOne && canScheduleLessonSession,
+      reason: !isTutorialDayOne && canScheduleLessonSession ? "" : "Locked during Day 1 tutorial.",
+    },
+    competition: {
+      enabled: !isTutorialDayOne && canScheduleCompetitionSession,
+      reason: !isTutorialDayOne && canScheduleCompetitionSession ? "" : "Locked during Day 1 tutorial.",
+    },
+    video: {
+      enabled: !isTutorialDayOne && canScheduleVideoSession,
+      reason: !isTutorialDayOne && canScheduleVideoSession ? "" : "Locked during Day 1 tutorial.",
+    },
+  }), [canScheduleBeginnerSession, canScheduleCompetitionSession, canScheduleLessonSession, canScheduleVideoSession, isTutorialDayOne]);
+
+  const canStartTodaySession = useMemo(() => {
+    if (isTutorialDayOne) return false;
+    if (sessionState.isActive) return false;
+    if (!hasSessionAvailableToday) return false;
+    if (!todayScheduledSession) return canStartNormalSession;
+    if (todayScheduledSession.type === "beginner") return hasAnySkateparkPiece && startingSpotsCapacity >= 2;
+    if (todayScheduledSession.type === "lesson") {
+      const setup = todayScheduledSession.setup || {};
+      const instructorCount = (setup.selectedInstructorIds || []).length;
+      const skaterCount = (setup.selectedSkaterIds || []).length;
+      return hasAnySkateparkPiece && instructorCount > 0 && skaterCount === instructorCount && lessonSlotCapacity > 0;
+    }
+    if (todayScheduledSession.type === "competition") return canStartCompetitionSession;
+    if (todayScheduledSession.type === "video") return canStartVideoSession;
+    return canStartNormalSession;
+  }, [
+    canStartCompetitionSession,
+    canStartNormalSession,
+    canStartVideoSession,
+    hasAnySkateparkPiece,
+    hasSessionAvailableToday,
+    lessonSlotCapacity,
+    sessionState.isActive,
+    startingSpotsCapacity,
+    isTutorialDayOne,
+    todayScheduledSession,
+  ]);
+
+  const canAdvanceTutorialDay = useMemo(
+    () =>
+      isTutorialDayOne &&
+      !sessionState.isActive &&
+      !sessionState.isTickRunning &&
+      gridMode === "edit" &&
+      hasTutorialInstructor &&
+      hasTutorialMiniRamp &&
+      hasTutorialBeginnerTomorrow,
+    [
+      gridMode,
+      hasTutorialBeginnerTomorrow,
+      hasTutorialInstructor,
+      hasTutorialMiniRamp,
+      isTutorialDayOne,
+      sessionState.isActive,
+      sessionState.isTickRunning,
+    ]
+  );
+
+  const onStartTodaySession = useCallback(() => {
+    if (!todayScheduledSession) {
+      onStartNormalSession();
+      return;
+    }
+    const setup = todayScheduledSession.setup || {};
+    if (todayScheduledSession.type === "beginner") {
+      startBeginnerSessionForSport(setup.sport || SKATER_SPORT.SKATEBOARDER);
+      return;
+    }
+    if (todayScheduledSession.type === "lesson") {
+      startLessonSessionFromSetup(
+        {
+          selectedInstructorIds: setup.selectedInstructorIds || [],
+          selectedSkaterIds: setup.selectedSkaterIds || [],
+        },
+        { slotsAlreadyReserved: true }
+      );
+      return;
+    }
+    if (todayScheduledSession.type === "competition") {
+      startCompetitionSessionFromSetup(setup);
+      return;
+    }
+    if (todayScheduledSession.type === "video") {
+      startVideoSessionFromSetup(setup);
+      return;
+    }
+    onStartNormalSession();
+  }, [
+    onStartNormalSession,
+    startBeginnerSessionForSport,
+    startCompetitionSessionFromSetup,
+    startLessonSessionFromSetup,
+    startVideoSessionFromSetup,
+    todayScheduledSession,
+  ]);
+
+  const onAdvanceTutorialDay = useCallback(() => {
+    if (!canAdvanceTutorialDay) {
+      warning("Tutorial Day 1 requires: hire an instructor, place a mini ramp, and schedule a beginner session for tomorrow.");
+      return;
+    }
+    const nextDay = timeState.dayNumber + 1;
+    tutorialAutoStartDayRef.current = nextDay;
+    setTimeState((prev) => ({
+      ...prev,
+      dayNumber: prev.dayNumber + 1,
+    }));
+    success(`Advanced to Day ${nextDay}.`);
+  }, [canAdvanceTutorialDay, success, timeState.dayNumber, warning]);
+
+  useEffect(() => {
+    const targetDay = tutorialAutoStartDayRef.current;
+    if (!targetDay) return;
+    if (timeState.dayNumber !== targetDay) return;
+    if (gridMode !== "edit" || sessionState.isActive || sessionState.isTickRunning) return;
+
+    tutorialAutoStartDayRef.current = null;
+    if (todayScheduledSession?.type === "beginner") {
+      onStartTodaySession();
+    }
+  }, [
+    gridMode,
+    onStartTodaySession,
+    sessionState.isActive,
+    sessionState.isTickRunning,
+    timeState.dayNumber,
+    todayScheduledSession?.type,
+  ]);
+
+  const onScheduleDragStart = useCallback(() => {}, []);
 
   const onOpenEditsModal = useCallback(() => {
     openModal({
@@ -2563,7 +3111,7 @@ export const useGridModel = () => {
     setPlayerInstructors((prev) => {
       let next = normalizeInstructorList(prev);
 
-      if (sessionState.sessionType === "lesson") {
+      if (sessionState.sessionType === "lesson" && !sessionState.lesson?.slotsAlreadyReserved) {
         const participatingIds = new Set(sessionState.lesson?.selectedInstructorIds || []);
         next = next.map((instructor) => {
           if (!participatingIds.has(instructor.id)) return instructor;
@@ -2577,9 +3125,26 @@ export const useGridModel = () => {
       const nextDayNumber = completedDayNumber + 1;
       const nextDayName = DAY_NAMES[(nextDayNumber - 1) % DAYS_PER_WEEK];
       if (nextDayName === "Wed") {
+        const nextWeekNumber = getWeekFromDay(nextDayNumber);
+        const scheduledForWeek = (timeState.sessionSchedule || []).filter(
+          (entry) =>
+            Number(entry?.week) === nextWeekNumber &&
+            Number(entry?.dayNumber || 0) >= nextDayNumber &&
+            Array.isArray(entry?.reservedInstructorIds) &&
+            entry.reservedInstructorIds.length > 0
+        );
+        const reservedCountByInstructor = new Map();
+        scheduledForWeek.forEach((entry) => {
+          entry.reservedInstructorIds.forEach((id) => {
+            reservedCountByInstructor.set(id, (reservedCountByInstructor.get(id) || 0) + 1);
+          });
+        });
         next = next.map((instructor) => ({
           ...instructor,
-          lessonSlotsRemaining: Number(instructor.lessonSlotsBase || 0),
+          lessonSlotsRemaining: Math.max(
+            0,
+            Number(instructor.lessonSlotsBase || 0) - Number(reservedCountByInstructor.get(instructor.id) || 0)
+          ),
         }));
       }
 
@@ -2607,7 +3172,7 @@ export const useGridModel = () => {
     const nextWeek = Math.floor((nextDayNumber - 1) / DAYS_PER_WEEK) + 1;
     const nextDayName = DAY_NAMES[(nextDayNumber - 1) % DAYS_PER_WEEK];
     success(`Session ended. New day: ${nextDayName}, Week ${nextWeek}.`);
-  }, [canEndSession, sessionState, success, timeState.dayNumber, warning]);
+  }, [canEndSession, sessionState, success, timeState.dayNumber, timeState.sessionSchedule, warning]);
 
   const onEndLessonSession = useCallback(() => {
     if (gridMode !== "session" || sessionState.sessionType !== "lesson") return;
@@ -3136,6 +3701,10 @@ export const useGridModel = () => {
     canStartLessonSession,
     canStartCompetitionSession,
     canStartVideoSession,
+    canStartTodaySession,
+    todaySessionTypeLabel,
+    isTutorialDayOne,
+    canAdvanceTutorialDay,
     lessonTickReady,
     videoTickReady,
     canEndSession,
@@ -3149,11 +3718,18 @@ export const useGridModel = () => {
     onCommitRoute,
     onToggleDeleteMode,
     onGridSizeChange,
+    scheduledSessions,
+    sessionScheduleAvailability,
+    onScheduleDragStart,
+    onScheduleDropToDay,
+    onScheduleRemoveDrop,
     onStartBeginnerSession,
     onStartNormalSession,
     onStartLessonSession,
     onStartCompetitionSession,
     onStartVideoSession,
+    onStartTodaySession,
+    onAdvanceTutorialDay,
     onRecruitBeginnerSkater,
     onEndSession,
     onEndLessonSession,
